@@ -1,0 +1,11 @@
+vendor/
+node_modules/
+.env
+.git
+.gitignore
+docker-compose.yml
+Dockerfile
+.dockerignore
+storage/app/
+bootstrap/cache/*.php
+!bootstrap/cache/.gitignore

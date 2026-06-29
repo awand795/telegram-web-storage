@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: telestore-db
+    environment:
+      POSTGRES_DB: telestore
+      POSTGRES_USER: telestore
+      POSTGRES_PASSWORD: telestore_secret
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U telestore']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: telestore-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: telestore-api
+    ports:
+      - '8000:8000'
+    environment:
+      APP_NAME: TeleStore
+      APP_ENV: local
+      APP_DEBUG: 'true'
+      APP_KEY: ${APP_KEY:-base64:random32charsplaceholder}
+      APP_URL: http://localhost:8000
+      FRONTEND_URL: http://localhost:5173
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: telestore
+      DB_USERNAME: telestore
+      DB_PASSWORD: telestore_secret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ''
+      QUEUE_CONNECTION: redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      SANCTUM_STATEFUL_DOMAINS: localhost:5173,localhost
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    volumes:
+      - ./backend:/var/www
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  queue-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: telestore-queue
+    command: php artisan queue:work --queue=uploads,webhooks,default --sleep=3 --tries=3
+    environment:
+      APP_NAME: TeleStore
+      APP_ENV: local
+      APP_DEBUG: 'true'
+      APP_KEY: ${APP_KEY:-base64:random32charsplaceholder}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: telestore
+      DB_USERNAME: telestore
+      DB_PASSWORD: telestore_secret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ''
+      QUEUE_CONNECTION: redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    volumes:
+      - ./backend:/var/www
+    depends_on:
+      - backend
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: telestore-web
+    ports:
+      - '5173:5173'
+    environment:
+      VITE_API_URL: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
