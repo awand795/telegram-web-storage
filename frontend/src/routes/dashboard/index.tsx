@@ -20,13 +20,13 @@ export const Route = createRoute({
 })
 
 const chartData = [
-  { name: 'Mon', files: 12 },
-  { name: 'Tue', files: 19 },
-  { name: 'Wed', files: 15 },
-  { name: 'Thu', files: 28 },
-  { name: 'Fri', files: 24 },
-  { name: 'Sat', files: 8 },
-  { name: 'Sun', files: 14 },
+  { name: 'Mon', files: 0 },
+  { name: 'Tue', files: 0 },
+  { name: 'Wed', files: 0 },
+  { name: 'Thu', files: 0 },
+  { name: 'Fri', files: 0 },
+  { name: 'Sat', files: 0 },
+  { name: 'Sun', files: 0 },
 ]
 
 const statCards = [
@@ -114,29 +114,27 @@ function DashboardPage() {
         <div className="rounded-xl border border-border-default bg-surface p-4">
           <h2 className="mb-4 text-sm font-medium text-text-secondary">Storage by Type</h2>
           <div className="space-y-3">
-            {[
-              { type: 'Images', count: 142, size: 2_456_000_000, color: '#a78bfa' },
-              { type: 'Documents', count: 89, size: 1_234_000_000, color: '#22d3ee' },
-              { type: 'Videos', count: 23, size: 4_567_000_000, color: '#f87171' },
-              { type: 'Other', count: 34, size: 345_000_000, color: '#e879f9' },
-            ].map((item) => {
-              const total = 2_456_000_000 + 1_234_000_000 + 4_567_000_000 + 345_000_000
+            {(usage?.storage_by_type ?? []).map((item) => {
+              const total = usage.storage_by_type.reduce((s, i) => s + i.size, 0) || 1
               const pct = (item.size / total) * 100
               return (
-                <div key={item.type}>
+                <div key={item.mime_type}>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-text-secondary">{item.type}</span>
+                    <span className="text-text-secondary">{item.mime_type}</span>
                     <span className="text-text-muted">{formatBytes(item.size)}</span>
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-800">
                     <div
                       className="h-full rounded-full transition-all"
-                      style={{ width: `${pct}%`, backgroundColor: item.color }}
+                      style={{ width: `${pct}%`, backgroundColor: '#a78bfa' }}
                     />
                   </div>
                 </div>
               )
             })}
+            {!(usage?.storage_by_type ?? []).length && (
+              <p className="text-xs text-text-muted text-center py-8">No data yet. Start uploading files!</p>
+            )}
           </div>
         </div>
       </div>

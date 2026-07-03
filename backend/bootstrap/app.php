@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\ApiKeyAuth;
 use App\Http\Middleware\RateLimitByKey;
 use Illuminate\Foundation\Application;
@@ -15,11 +16,19 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
+            'admin' => AdminMiddleware::class,
             'api-key' => ApiKeyAuth::class,
             'rate-limit-key' => RateLimitByKey::class,
         ]);
 
         $middleware->statefulApi();
+
+        // Exclude auth routes from CSRF for API token-based auth
+        $middleware->validateCsrfTokens(except: [
+            '/auth/register',
+            '/auth/login',
+            '/auth/logout',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

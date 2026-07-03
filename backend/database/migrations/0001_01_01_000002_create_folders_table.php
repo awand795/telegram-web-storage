@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
             $table->foreignUlid('bot_id')->constrained('bots')->cascadeOnDelete();
             $table->string('name');
-            $table->foreignUlid('parent_id')->nullable()->constrained('folders')->cascadeOnDelete();
+            $table->ulid('parent_id')->nullable();
             $table->string('path'); // ltree path like "root.child.grandchild"
             $table->timestamps();
 

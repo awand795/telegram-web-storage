@@ -6,14 +6,18 @@ use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\BotController;
 use Illuminate\Support\Facades\Route;
 
-// Auth (no prefix)
+// Public auth routes
+Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/login', [AuthController::class, 'login']);
+
+// Telegram OAuth
 Route::get('/auth/telegram', [AuthController::class, 'redirect'])->name('auth.telegram.redirect');
 Route::get('/auth/telegram/callback', [AuthController::class, 'callback'])->name('auth.telegram.callback');
-Route::post('/auth/logout', [AuthController::class, 'logout'])->middleware('auth');
 
-// Web SPA (Sanctum) — under /web/ prefix
-Route::prefix('web')->middleware('auth')->group(function () {
+// Web SPA (Sanctum) — under /web/ prefix, must be authenticated
+Route::prefix('web')->middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 
     // Bots
     Route::get('/bots', [BotController::class, 'index']);
@@ -25,6 +29,11 @@ Route::prefix('web')->middleware('auth')->group(function () {
     Route::post('/apikeys', [ApiKeyController::class, 'store']);
     Route::delete('/apikeys/{id}', [ApiKeyController::class, 'destroy']);
 
-    // Audit
-    Route::get('/audit', [AuditController::class, 'index']);
+    // Admin-only routes
+    Route::middleware('admin')->group(function () {
+        Route::get('/audit', [AuditController::class, 'index']);
+        Route::get('/users', function () {
+            return \App\Models\User::all();
+        });
+    });
 });

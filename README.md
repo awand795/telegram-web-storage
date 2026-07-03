@@ -28,12 +28,22 @@ TeleStore adalah platform cloud storage yang memanfaatkan infrastruktur Telegram
 | Teknologi | Versi | Kegunaan |
 |-----------|-------|----------|
 | Laravel | 12 | Core framework, Eloquent ORM, Queue |
-| PHP | 8.2+ | Runtime |
-| Laravel Octane | 2.x | High-performance server via Swoole |
-| Laravel Sanctum | 4.x | SPA cookie auth + API token auth |
+| PHP | 8.4+ | Runtime |
+| FrankenPHP / Laravel Octane | 2.x | High-performance server with Caddy |
+| Laravel Sanctum | 4.x | API token auth (Bearer) |
 | PostgreSQL | 17 | Database dengan JSONB & ltree support |
 | Redis | 7 | Queue, Cache, Session driver |
-| Telegram Bot SDK | 3.x | Bot API wrapper |
+
+---
+
+## Role-Based Access Control
+
+TeleStore memiliki 2 level user:
+
+| Role | Akses |
+|------|-------|
+| **User** | Dashboard (statistik sendiri), Files (upload & lihat file sendiri) |
+| **Admin** | Semua menu: Dashboard, Files, Bots, API Keys, Webhooks, Audit Log + bisa lihat semua file user |
 
 ---
 
@@ -42,10 +52,10 @@ TeleStore adalah platform cloud storage yang memanfaatkan infrastruktur Telegram
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Frontend (React SPA)                  │
-│  localhost:5173                                          │
+│  localhost:7888 (Docker) / localhost:5173 (local)       │
 │  ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌─────────────┐ │
 │  │ Router  │ │ TanStack │ │ Zustand  │ │ shadcn/ui   │ │
-│  │ (9 rute)│ │ Query    │ │ (5 store)│ │ Components  │ │
+│  │ (10 rute)│ │ Query    │ │ (5 store)│ │ Components  │ │
 │  └─────────┘ └──────────┘ └──────────┘ └─────────────┘ │
 └──────────────────────┬──────────────────────────────────┘
                        │ HTTP (proxy /api, /web, /auth)
@@ -55,8 +65,8 @@ TeleStore adalah platform cloud storage yang memanfaatkan infrastruktur Telegram
 │  localhost:8000                                           │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────┐ │
 │  │ API v1   │ │ Web SPA  │ │ Auth     │ │ Middleware │ │
-│  │ /api/v1/*│ │ /web/*   │ │ /auth/*  │ │ ApiKeyAuth │ │
-│  └──────────┘ └──────────┘ └──────────┘ │ RateLimit  │ │
+│  │ /api/v1/*│ │ /web/*   │ │ /auth/*  │ │ Admin,     │ │
+│  └──────────┘ └──────────┘ └──────────┘ │ ApiKeyAuth │ │
 │  ┌───────────────────────────────────────┴────────────┘ │
 │  │ Services: TelegramService, ApiKeyService, Storage     │
 │  │ Jobs: UploadFileToTelegramJob, WebhookDispatchJob     │
@@ -70,9 +80,9 @@ TeleStore adalah platform cloud storage yang memanfaatkan infrastruktur Telegram
 │  · users   │        │  · Queue   │
 │  · bots    │        │  · Cache   │
 │  · files   │        │  · Session │
-│  · folders │        │  · Rate    │
-│  · api_keys│        │    Limit   │
-│  · webhooks│        └────────────┘
+│  · folders │        └────────────┘
+│  · api_keys│
+│  · webhooks│
 │  · audit   │
 └────────────┘
 ```
@@ -102,11 +112,22 @@ Client polling:
 ### Alur Autentikasi
 
 ```
-Web SPA (Sanctum Cookie):
+Web SPA (Email/Password):
+  POST /auth/register → { name, email, password }
+  → Create user (role: user)
+  → Return { user, token } (Sanctum Bearer token)
+
+  POST /auth/login → { email, password }
+  → Verify credentials
+  → Return { user, token }
+
+  Header Authorization: Bearer <token>
+  → Setiap request ke /web/* atau /api/v1/*
+
+Telegram OAuth (alternatif):
   GET /auth/telegram → redirect ke Telegram OAuth
   → Callback → verify hash → create/update User
-  → Set session cookie (httpOnly, secure)
-  → Redirect ke dashboard
+  → Set session cookie → redirect ke dashboard
 
 AI Agent (API Key):
   Header: Authorization: Bearer ts_live_<64hex>
@@ -120,11 +141,36 @@ AI Agent (API Key):
 
 ### Prasyarat
 - Node.js 22+
-- PHP 8.2+
+- PHP 8.4+
 - Composer
 - PostgreSQL 17
 - Redis 7
 - Telegram Bot Token (dari [@BotFather](https://t.me/BotFather))
+- Docker Desktop
+
+### Setup dengan Docker (Recommended)
+
+```bash
+# 1. Clone & masuk direktori
+cd telegramstorage
+
+# 2. Setup .env (sudah tersedia)
+# Pastikan TELEGRAM_BOT_USERNAME dan TELEGRAM_BOT_TOKEN terisi
+
+# 3. Jalankan semua services
+docker compose up -d
+
+# 4. Run migrations
+docker compose exec backend php artisan migrate
+
+# 5. (Opsional) Install Sanctum migrations
+docker compose exec backend php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider" --tag="sanctum-migrations" --force
+docker compose exec backend php artisan migrate
+
+# 6. Akses aplikasi
+# Frontend: http://localhost:7888
+# Backend API: http://localhost:8000/api/v1
+```
 
 ### Setup Local (tanpa Docker)
 
@@ -156,7 +202,7 @@ echo "VITE_API_URL=http://localhost:8000" > .env
 Terminal 1 - Backend:
 ```bash
 cd backend
-php artisan octane:start --server=swoole --host=localhost --port=8000
+php artisan octane:start --server=frankenphp --host=localhost --port=8000
 ```
 
 Terminal 2 - Queue Worker:
@@ -171,26 +217,6 @@ cd frontend
 npm run dev
 ```
 
-### Setup dengan Docker
-
-```bash
-# 1. Setup .env
-cp backend/.env.example backend/.env
-
-# 2. Generate APP_KEY
-docker compose run --rm backend php artisan key:generate
-
-# 3. Jalankan semua services
-docker compose up -d
-
-# 4. Run migrations
-docker compose exec backend php artisan migrate
-
-# 5. Akses aplikasi
-# Frontend: http://localhost:5173
-# Backend API: http://localhost:8000/api/v1
-```
-
 ---
 
 ## Environment Variables
@@ -203,7 +229,7 @@ docker compose exec backend php artisan migrate
 | `APP_ENV` | No | `local` | Environment (`local`, `production`) |
 | `APP_DEBUG` | No | `true` | Debug mode |
 | `APP_URL` | Yes | `http://localhost:8000` | Backend URL |
-| `FRONTEND_URL` | Yes | `http://localhost:5173` | Frontend URL (CORS + redirect) |
+| `FRONTEND_URL` | Yes | `http://localhost:7888` | Frontend URL (CORS + redirect) |
 | `APP_KEY` | **Yes** | — | Laravel encryption key (32-char random) |
 | `DB_CONNECTION` | No | `pgsql` | Database driver |
 | `DB_HOST` | Yes | `127.0.0.1` | Database host |
@@ -214,11 +240,10 @@ docker compose exec backend php artisan migrate
 | `REDIS_HOST` | Yes | `127.0.0.1` | Redis host |
 | `REDIS_PORT` | No | `6379` | Redis port |
 | `REDIS_PASSWORD` | No | `` | Redis password |
-| `SESSION_DRIVER` | No | `redis` | Session driver (gunakan `redis` untuk performance) |
-| `SESSION_DOMAIN` | No | `localhost` | Session cookie domain |
-| `SANCTUM_STATEFUL_DOMAINS` | Yes | `localhost:5173` | Domain untuk Sanctum SPA auth |
-| `CORS_ALLOWED_ORIGINS` | Yes | `http://localhost:5173` | Origin yang diizinkan CORS |
-| `QUEUE_CONNECTION` | No | `redis` | Queue driver (gunakan `redis` untuk async) |
+| `SESSION_DRIVER` | No | `redis` | Session driver |
+| `SANCTUM_STATEFUL_DOMAINS` | Yes | `localhost:7888` | Domain untuk Sanctum SPA auth |
+| `CORS_ALLOWED_ORIGINS` | Yes | `http://localhost:7888` | Origin yang diizinkan CORS |
+| `QUEUE_CONNECTION` | No | `redis` | Queue driver |
 | `CACHE_STORE` | No | `redis` | Cache driver |
 | `TELEGRAM_BOT_USERNAME` | **Yes** | — | Username bot Telegram (dari @BotFather) |
 | `TELEGRAM_BOT_TOKEN` | **Yes** | — | Token bot Telegram |
@@ -242,16 +267,41 @@ docker compose exec backend php artisan migrate
 
 ### Autentikasi
 
-**Web SPA:** Cookie session (Sanctum SPA) — login via Telegram OAuth
-**AI Agent:** `Authorization: Bearer ts_live_<64hex>`
+| Metode | Cara | Untuk |
+|--------|------|-------|
+| **Email/Password** | `POST /auth/register` atau `POST /auth/login` → dapat Bearer token | Web SPA user |
+| **Telegram OAuth** | `GET /auth/telegram` → redirect → session cookie | Web SPA (alternatif) |
+| **API Key** | `Authorization: Bearer ts_live_<64hex>` | AI Agent / 3rd party |
 
 ### Endpoints
 
-#### Files
+#### Auth (Public)
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/auth/register` | — | Register email/password → `{ user, token }` |
+| `POST` | `/auth/login` | — | Login email/password → `{ user, token }` |
+| `GET` | `/auth/telegram` | — | Redirect ke Telegram OAuth |
+| `GET` | `/auth/telegram/callback` | — | OAuth callback |
+
+#### Web SPA (Sanctum Bearer Token)
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/web/me` | Sanctum | Current user + bots |
+| `POST` | `/web/logout` | Sanctum | Revoke token |
+| `GET` | `/web/bots` | Sanctum | List bots |
+| `POST` | `/web/bots` | Sanctum | Tambah bot |
+| `DELETE` | `/web/bots/{id}` | Sanctum | Hapus bot |
+| `GET` | `/web/apikeys` | Sanctum | List API keys |
+| `POST` | `/web/apikeys` | Sanctum | Generate key |
+| `DELETE` | `/web/apikeys/{id}` | Sanctum | Revoke key |
+| `GET` | `/web/users` | Admin | List all users (admin only) |
+| `GET` | `/web/audit` | Admin | Audit log (admin only) |
+
+#### Files (API Key)
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | `POST` | `/api/v1/files/upload` | API Key | Upload file (multipart) → return 202 |
-| `GET` | `/api/v1/files` | API Key | List files (paginated, filterable) |
+| `GET` | `/api/v1/files` | API Key | List files (user: hanya milik sendiri, admin: semua) |
 | `GET` | `/api/v1/files/{id}` | API Key | File detail + metadata |
 | `GET` | `/api/v1/files/{id}/download` | API Key | Redirect/stream file dari Telegram CDN |
 | `DELETE` | `/api/v1/files/{id}` | API Key | Hard delete |
@@ -274,33 +324,6 @@ docker compose exec backend php artisan migrate
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | `GET` | `/api/v1/usage` | API Key | Stats dashboard |
-
-#### Auth (Web SPA)
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `GET` | `/auth/telegram` | — | Redirect ke Telegram OAuth |
-| `GET` | `/auth/telegram/callback` | — | OAuth callback |
-| `POST` | `/auth/logout` | Sanctum | Logout |
-| `GET` | `/web/me` | Sanctum | Current user + bots |
-
-#### Bots (Web SPA)
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `GET` | `/web/bots` | Sanctum | List bots |
-| `POST` | `/web/bots` | Sanctum | Tambah bot |
-| `DELETE` | `/web/bots/{id}` | Sanctum | Hapus bot |
-
-#### API Keys (Web SPA)
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `GET` | `/web/apikeys` | Sanctum | List API keys |
-| `POST` | `/web/apikeys` | Sanctum | Generate key |
-| `DELETE` | `/web/apikeys/{id}` | Sanctum | Revoke key |
-
-#### Audit
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `GET` | `/web/audit` | Sanctum | Audit log (paginated) |
 
 ---
 
@@ -327,16 +350,6 @@ sudo supervisorctl start telestore-worker:*
 | `uploads` | `UploadFileToTelegramJob` | Upload file ke Telegram, update status, dispatch webhook |
 | `webhooks` | `WebhookDispatchJob` | POST event ke registered webhook URLs |
 
-### Monitoring (Horizon)
-
-```bash
-# Install & akses dashboard
-composer require laravel/horizon
-php artisan horizon:install
-php artisan horizon
-# Dashboard: /horizon
-```
-
 ---
 
 ## Struktur Project
@@ -345,42 +358,35 @@ php artisan horizon
 telegramstorage/
 ├── backend/                    # Laravel API
 │   ├── app/
-│   │   ├── Actions/            # Single-purpose action classes
-│   │   ├── Data/               # DTO (Spatie)
 │   │   ├── Http/
 │   │   │   ├── Controllers/
 │   │   │   │   ├── Api/V1/     # AI Agent API endpoints
-│   │   │   │   └── Web/        # Web SPA endpoints
-│   │   │   ├── Middleware/     # ApiKeyAuth, RateLimitByKey
-│   │   │   └── Requests/       # FormRequest per endpoint
+│   │   │   │   └── Web/        # Web SPA endpoints (Auth, Bots, dll)
+│   │   │   └── Middleware/     # AdminMiddleware, ApiKeyAuth, RateLimitByKey
 │   │   ├── Jobs/              # UploadFileToTelegramJob, WebhookDispatchJob
-│   │   ├── Models/            # User, Bot, File, Folder, ApiKey, Webhook, AuditLog
-│   │   ├── Observers/         # FileObserver, ApiKeyObserver
+│   │   ├── Models/            # User (dengan role), Bot, File, Folder, ApiKey, Webhook, AuditLog
 │   │   └── Services/          # TelegramService, ApiKeyService, StorageService
-│   ├── config/                # App, Sanctum, CORS, Queue, Services
 │   ├── database/
-│   │   ├── migrations/        # 8 migration files
-│   │   ├── seeders/
-│   │   └── factories/
+│   │   ├── migrations/        # 9 migration files (termasuk role, email, password)
+│   │   └── seeders/
 │   ├── routes/
 │   │   ├── api.php            # API v1 routes
-│   │   └── web.php            # Web SPA + Auth routes
-│   └── tests/                 # Pest tests
+│   │   └── web.php            # Web SPA + Auth + Admin routes
+│   └── bootstrap/app.php      # Middleware config (admin alias, CSRF exclude)
 │
 ├── frontend/                   # React SPA
 │   ├── src/
-│   │   ├── routes/            # TanStack Router (9 pages)
+│   │   ├── routes/            # TanStack Router (10 pages: login, register, dashboard, dll)
 │   │   ├── components/
-│   │   │   ├── ui/            # shadcn/ui components
-│   │   │   └── layout/        # Sidebar, Topbar
-│   │   ├── stores/            # Zustand (5 stores)
+│   │   │   └── ui/            # shadcn/ui components
+│   │   ├── stores/            # Zustand (authStore, botStore, dll)
 │   │   ├── queries/           # TanStack Query hooks
-│   │   ├── lib/               # Utils, Axios instance
+│   │   ├── lib/               # Axios (dengan Bearer token interceptor)
 │   │   └── types/             # Zod schemas + TS types
-│   └── tests/                 # Vitest + Playwright
+│   └── vite.config.ts         # Proxy /api, /web, /auth
 │
 ├── docker-compose.yml         # 5 services (DB, Redis, API, Queue, Web)
-└── README.md                  # ← Kamu di sini
+└── README.md
 ```
 
 ---
@@ -389,23 +395,21 @@ telegramstorage/
 
 ```bash
 # === Backend ===
-composer test              # Run Pest tests
-php artisan migrate        # Run migrations
-php artisan queue:work     # Process queue
-php artisan horizon        # Queue dashboard
-php artisan tinker         # Interactive shell
+composer test                  # Run Pest tests
+php artisan migrate            # Run migrations
+php artisan queue:work         # Process queue
+php artisan tinker             # Interactive shell
+php artisan make:user admin    # Buat user admin (custom command)
 
 # === Frontend ===
-npm run dev                # Dev server (port 5173)
-npm run build              # Production build
-npm run preview            # Preview production build
-npm run test               # Vitest unit tests
-npm run test:e2e           # Playwright E2E tests
+npm run dev                    # Dev server (port 5173)
+npm run build                  # Production build
+npm run preview                # Preview production build
 
 # === Docker ===
-docker compose up -d       # Start all services
-docker compose down        # Stop all services
-docker compose logs -f     # Follow logs
+docker compose up -d           # Start all services
+docker compose down            # Stop all services
+docker compose logs -f         # Follow logs
 docker compose exec backend php artisan migrate   # Run migrations in container
 ```
 
@@ -417,23 +421,12 @@ docker compose exec backend php artisan migrate   # Run migrations in container
 
 - [ ] Set `APP_ENV=production` dan `APP_DEBUG=false`
 - [ ] Generate strong `APP_KEY`
-- [ ] Set `SESSION_DRIVER=redis` dan `SESSION_DOMAIN=.yourdomain.com`
+- [ ] Set `SESSION_DRIVER=redis`
 - [ ] Set `SANCTUM_STATEFUL_DOMAINS` dengan domain production
 - [ ] Set `CORS_ALLOWED_ORIGINS` dengan domain frontend
 - [ ] Setup Supervisor untuk queue worker
-- [ ] Setup Horizon production config
 - [ ] Enable HTTPS + HSTS
 - [ ] Run `php artisan optimize` untuk cache config & routes
-- [ ] Run `php artisan octane:start --server=swoole` untuk production server
-
-### Recommended Providers
-
-| Service | Untuk |
-|---------|-------|
-| Railway / Render | Hosting backend + database |
-| Upstash | Serverless Redis |
-| Cloudflare R2 / S3 | Backup storage |
-| GitHub Actions | CI/CD pipeline |
 
 ---
 

@@ -12,10 +12,22 @@ class User extends Authenticatable
 
     protected $fillable = [
         'telegram_id',
+        'email',
+        'password',
         'name',
         'username',
         'avatar_url',
+        'role',
     ];
+
+    protected $hidden = [
+        'password',
+    ];
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
 
     public function bots()
     {

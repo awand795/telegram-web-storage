@@ -6,7 +6,7 @@ interface AuthState {
   token: string | null
   isAuthenticated: boolean
   isLoading: boolean
-  setUser: (user: User) => void
+  setUser: (user: User, token?: string) => void
   setToken: (token: string) => void
   clearAuth: () => void
   setLoading: (loading: boolean) => void
@@ -14,11 +14,22 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  token: null,
-  isAuthenticated: false,
+  token: localStorage.getItem('token'),
+  isAuthenticated: !!localStorage.getItem('token'),
   isLoading: true,
-  setUser: (user) => set({ user, isAuthenticated: true, isLoading: false }),
-  setToken: (token) => set({ token }),
-  clearAuth: () => set({ user: null, token: null, isAuthenticated: false, isLoading: false }),
+  setUser: (user, token) => {
+    if (token) {
+      localStorage.setItem('token', token)
+    }
+    set({ user, token: token || null, isAuthenticated: true, isLoading: false })
+  },
+  setToken: (token) => {
+    localStorage.setItem('token', token)
+    set({ token })
+  },
+  clearAuth: () => {
+    localStorage.removeItem('token')
+    set({ user: null, token: null, isAuthenticated: false, isLoading: false })
+  },
   setLoading: (loading) => set({ isLoading: loading }),
 }))

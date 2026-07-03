@@ -51,10 +51,20 @@ class FileController extends Controller
             'search' => 'nullable|string|max:100',
             'sort' => 'nullable|string|in:uploaded_at_desc,uploaded_at_asc,name_asc,name_desc,size_desc,size_asc',
             'folder' => 'nullable|string|exists:folders,id',
+            'user_id' => 'nullable|string|exists:users,id',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
 
-        $query = File::where('user_id', $request->user()->id);
+        $query = File::query();
+
+        // Regular users only see their own files; admins can see all or filter by user
+        if ($request->user()->isAdmin()) {
+            if ($request->filled('user_id')) {
+                $query->where('user_id', $request->user_id);
+            }
+        } else {
+            $query->where('user_id', $request->user()->id);
+        }
 
         if ($request->filled('search')) {
             $query->where('name', 'like', "%{$request->search}%");
@@ -79,13 +89,21 @@ class FileController extends Controller
 
     public function show(Request $request, string $id): JsonResponse
     {
-        $file = File::where('user_id', $request->user()->id)->findOrFail($id);
+        $query = File::query();
+        if (!$request->user()->isAdmin()) {
+            $query->where('user_id', $request->user()->id);
+        }
+        $file = $query->findOrFail($id);
         return response()->json(['data' => $file->load('folder')]);
     }
 
     public function download(Request $request, string $id): mixed
     {
-        $file = File::where('user_id', $request->user()->id)->findOrFail($id);
+        $query = File::query();
+        if (!$request->user()->isAdmin()) {
+            $query->where('user_id', $request->user()->id);
+        }
+        $file = $query->findOrFail($id);
 
         if (!$file->telegram_file_id) {
             return response()->json(['message' => 'File not ready'], 404);
@@ -102,7 +120,11 @@ class FileController extends Controller
 
     public function destroy(Request $request, string $id): JsonResponse
     {
-        $file = File::where('user_id', $request->user()->id)->findOrFail($id);
+        $query = File::query();
+        if (!$request->user()->isAdmin()) {
+            $query->where('user_id', $request->user()->id);
+        }
+        $file = $query->findOrFail($id);
         $bot = $file->bot;
 
         $this->storageService->delete($file, $bot);
@@ -117,7 +139,11 @@ class FileController extends Controller
             'tags.*' => 'string|max:50',
         ]);
 
-        $file = File::where('user_id', $request->user()->id)->findOrFail($id);
+        $query = File::query();
+        if (!$request->user()->isAdmin()) {
+            $query->where('user_id', $request->user()->id);
+        }
+        $file = $query->findOrFail($id);
         $file->update(['tags' => $request->tags]);
 
         return response()->json(['data' => $file]);

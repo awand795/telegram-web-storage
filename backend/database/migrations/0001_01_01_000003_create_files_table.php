@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('name');
             $table->bigInteger('size');
             $table->string('mime_type');
-            $table->foreignUlid('folder_id')->nullable()->constrained('folders')->nullOnDelete();
+            $table->ulid('folder_id')->nullable();
             $table->jsonb('tags')->default('[]');
             $table->string('status')->default('pending'); // pending, done, failed
             $table->timestamp('uploaded_at')->nullable();

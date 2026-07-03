@@ -11,6 +11,7 @@ export const UserSchema = z.object({
   name: z.string(),
   username: z.string().nullable(),
   avatar_url: z.string().nullable(),
+  role: z.string().optional(),
   created_at: z.string(),
 })
 export type User = z.infer<typeof UserSchema>

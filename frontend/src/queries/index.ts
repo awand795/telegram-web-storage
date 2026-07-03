@@ -237,5 +237,6 @@ export function useMe() {
     },
     staleTime: 300_000,
     retry: false,
+    enabled: !!localStorage.getItem('token'),
   })
 }
