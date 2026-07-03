@@ -19,7 +19,7 @@ function RootLayout() {
   const { isAuthenticated, setUser, clearAuth, isLoading } = useAuthStore()
   const location = useLocation()
   const router = useRouter()
-  const isPublicPage = location.pathname === '/login' || location.pathname === '/register'
+  const isPublicPage = location.pathname === '/login' || location.pathname === '/register' || location.pathname.startsWith('/s/')
 
   // Fetch current user if token exists
   const { data: meData } = useMe()

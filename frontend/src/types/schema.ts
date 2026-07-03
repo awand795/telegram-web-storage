@@ -40,6 +40,7 @@ export const FileSchema = z.object({
   tags: z.array(z.string()),
   status: FileStatus,
   uploaded_at: z.string(),
+  share_token: z.string().nullable().optional(),
 })
 export type File = z.infer<typeof FileSchema>
 

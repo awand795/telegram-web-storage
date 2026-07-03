@@ -15,6 +15,9 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::get('/auth/telegram', [AuthController::class, 'redirect'])->name('auth.telegram.redirect');
 Route::get('/auth/telegram/callback', [AuthController::class, 'callback'])->name('auth.telegram.callback');
 
+// Public shared file download (no auth required)
+Route::get('/s/{shareToken}/download', [\App\Http\Controllers\Api\V1\ShareController::class, 'download']);
+
 // Web SPA (Sanctum) — under /web/ prefix, must be authenticated
 Route::prefix('web')->middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);

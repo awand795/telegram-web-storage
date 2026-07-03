@@ -253,6 +253,46 @@ export function useAuditLogs(filters?: Record<string, string>) {
   })
 }
 
+// === Share ===
+export function useGenerateShareLink() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (fileId: string) => {
+      const { data } = await api.post<{ share_token: string; share_url: string }>(`/api/v1/files/${fileId}/share`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+    },
+  })
+}
+
+export function useRevokeShareLink() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (fileId: string) => {
+      await api.delete(`/api/v1/files/${fileId}/share`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+    },
+  })
+}
+
+export function useSharedFile(token: string) {
+  return useQuery({
+    queryKey: ['shared-file', token],
+    queryFn: async () => {
+      const { data } = await api.get<{ data: { name: string; size: number; mime_type: string; uploaded_at: string; share_token: string } }>(`/s/${token}`, {
+        baseURL: '/',
+      })
+      return data.data
+    },
+    enabled: !!token,
+    staleTime: 60_000,
+  })
+}
+
 // === Auth ===
 export function useMe() {
   return useQuery({

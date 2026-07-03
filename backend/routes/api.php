@@ -17,6 +17,10 @@ Route::prefix('v1')->middleware([ApiKeyAuth::class, RateLimitByKey::class])->gro
     Route::delete('/files/{id}', [FileController::class, 'destroy']);
     Route::patch('/files/{id}/tags', [FileController::class, 'updateTags']);
 
+    // Share
+    Route::post('/files/{id}/share', [ShareController::class, 'generate']);
+    Route::delete('/files/{id}/share', [ShareController::class, 'revoke']);
+
     // Folders
     Route::get('/folders', [FolderController::class, 'index']);
     Route::post('/folders', [FolderController::class, 'store']);
