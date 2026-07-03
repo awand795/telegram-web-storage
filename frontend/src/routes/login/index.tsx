@@ -2,7 +2,7 @@ import { createRoute, useRouter } from '@tanstack/react-router'
 import { Route as rootRoute } from '@/routes/__root'
 import { motion } from 'motion/react'
 import { Send, Shield, Database, Key, Mail, Lock, Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import api from '@/lib/axios'
 import { toast } from 'sonner'
@@ -18,8 +18,25 @@ function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const { setUser, setToken } = useAuthStore()
+  const { setUser } = useAuthStore()
   const router = useRouter()
+
+  // Handle Telegram OAuth callback token
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const tokenFromUrl = urlParams.get('token')
+    if (tokenFromUrl) {
+      localStorage.setItem('token', tokenFromUrl)
+      // Fetch user data and redirect
+      api.get('/web/me').then(({ data }) => {
+        setUser(data, tokenFromUrl)
+        toast.success('Welcome!')
+        router.navigate({ to: '/dashboard' })
+      }).catch(() => {
+        toast.error('Authentication failed')
+      })
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()

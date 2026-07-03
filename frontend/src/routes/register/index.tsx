@@ -20,7 +20,7 @@ function RegisterPage() {
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const { setUser, setToken } = useAuthStore()
+  const { setUser } = useAuthStore()
   const router = useRouter()
 
   const handleRegister = async (e: React.FormEvent) => {

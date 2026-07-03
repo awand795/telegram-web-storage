@@ -13,9 +13,11 @@ export function formatBytes(bytes: number): string {
   return `${Number.parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${units[i]}`
 }
 
-export function relativeTime(date: Date | string): string {
+export function relativeTime(date: Date | string | null | undefined): string {
+  if (!date) return '-'
   const now = new Date()
   const d = typeof date === 'string' ? new Date(date) : date
+  if (isNaN(d.getTime())) return '-'
   const diff = now.getTime() - d.getTime()
   const seconds = Math.floor(diff / 1000)
   const minutes = Math.floor(seconds / 60)

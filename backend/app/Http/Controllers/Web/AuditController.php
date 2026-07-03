@@ -17,7 +17,12 @@ class AuditController extends Controller
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
 
-        $query = AuditLog::where('user_id', $request->user()->id);
+        $query = AuditLog::query();
+
+        // Admin bisa lihat semua, user biasa hanya milik sendiri
+        if (!$request->user()->isAdmin()) {
+            $query->where('user_id', $request->user()->id);
+        }
 
         if ($request->filled('action')) {
             $query->where('action', $request->action);

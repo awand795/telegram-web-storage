@@ -1,33 +1,14 @@
-import { createRoute } from '@tanstack/react-router'
+import { createRoute, Link } from '@tanstack/react-router'
 import { Route as rootRoute } from '@/routes/__root'
-import { useUsage } from '@/queries'
-import { formatBytes } from '@/lib/utils'
+import { useUsage, useFiles } from '@/queries'
+import { formatBytes, relativeTime } from '@/lib/utils'
 import { motion } from 'motion/react'
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
 
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard',
   component: DashboardPage,
 })
-
-const chartData = [
-  { name: 'Mon', files: 0 },
-  { name: 'Tue', files: 0 },
-  { name: 'Wed', files: 0 },
-  { name: 'Thu', files: 0 },
-  { name: 'Fri', files: 0 },
-  { name: 'Sat', files: 0 },
-  { name: 'Sun', files: 0 },
-]
 
 const statCards = [
   { label: 'Total Files', key: 'total_files' as const, format: (v: number) => v.toLocaleString() },
@@ -38,6 +19,7 @@ const statCards = [
 
 function DashboardPage() {
   const { data: usage, isLoading } = useUsage()
+  const { data: recentFiles } = useFiles({ sort: 'uploaded_at_desc', per_page: '5' })
 
   return (
     <div className="space-y-6">
@@ -76,46 +58,63 @@ function DashboardPage() {
 
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 rounded-xl border border-border-default bg-surface p-4">
-          <h2 className="mb-4 text-sm font-medium text-text-secondary">Weekly Uploads</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorFiles" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="name" stroke="#71717a" fontSize={11} />
-                <YAxis stroke="#71717a" fontSize={11} />
-                <Tooltip
-                  contentStyle={{
-                    background: '#18181b',
-                    border: '1px solid #27272a',
-                    borderRadius: '8px',
-                    color: '#f4f4f5',
-                    fontSize: '12px',
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="files"
-                  stroke="#a78bfa"
-                  fillOpacity={1}
-                  fill="url(#colorFiles)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-medium text-text-secondary">Recent Uploads</h2>
+            <Link to="/files" className="text-[10px] text-accent-primary hover:underline">
+              View all
+            </Link>
           </div>
+          {!recentFiles?.length ? (
+            <p className="text-xs text-text-muted text-center py-12">
+              No files uploaded yet. Start uploading!
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {recentFiles.slice(0, 5).map((file, i) => (
+                <motion.div
+                  key={file.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-surface-elevated"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-lg shrink-0">
+                      {file.mime_type?.startsWith('image/') ? '🖼' :
+                       file.mime_type?.startsWith('video/') ? '🎬' :
+                       file.mime_type === 'application/pdf' ? '📄' : '📁'}
+                    </span>
+                    <div className="min-w-0">
+                      <Link
+                        to="/files/$fileId"
+                        params={{ fileId: file.id }}
+                        className="text-sm font-medium text-text-primary hover:text-accent-primary truncate block"
+                      >
+                        {file.name}
+                      </Link>
+                      <p className="text-[10px] text-text-muted">
+                        {formatBytes(file.size)} &middot; {relativeTime(file.uploaded_at)}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-medium uppercase ${
+                    file.status === 'done' ? 'text-success' :
+                    file.status === 'failed' ? 'text-danger' : 'text-warning'
+                  }`}>
+                    {file.status}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-border-default bg-surface p-4">
           <h2 className="mb-4 text-sm font-medium text-text-secondary">Storage by Type</h2>
           <div className="space-y-3">
             {(usage?.storage_by_type ?? []).map((item) => {
-              const total = usage.storage_by_type.reduce((s, i) => s + i.size, 0) || 1
+              const items = usage?.storage_by_type ?? []
+              const total = items.reduce((s, i) => s + i.size, 0) || 1
               const pct = (item.size / total) * 100
               return (
                 <div key={item.mime_type}>

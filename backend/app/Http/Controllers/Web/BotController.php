@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bot;
+use App\Services\AuditService;
 use App\Services\TelegramService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class BotController extends Controller
 {
-    public function __construct(private TelegramService $telegram) {}
+    public function __construct(
+        private TelegramService $telegram,
+        private AuditService $auditService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -25,6 +29,12 @@ class BotController extends Controller
             'token' => 'required|string',
         ]);
 
+        // Validate token by calling Telegram getMe
+        $botInfo = $this->telegram->getMe($request->token);
+        if (!$botInfo) {
+            return response()->json(['message' => 'Invalid bot token. Could not verify with Telegram.'], 422);
+        }
+
         $chatId = $this->telegram->getChatId($request->token);
 
         $bot = Bot::create([
@@ -36,6 +46,15 @@ class BotController extends Controller
             'active' => true,
         ]);
 
+        $this->auditService->log(
+            userId: $request->user()->id,
+            action: 'create',
+            targetType: 'bot',
+            targetId: $bot->id,
+            meta: ['name' => $request->name],
+            request: $request,
+        );
+
         return response()->json($bot, 201);
     }
 
@@ -45,6 +64,15 @@ class BotController extends Controller
         $bot->files()->delete();
         $bot->folders()->delete();
         $bot->delete();
+
+        $this->auditService->log(
+            userId: $request->user()->id,
+            action: 'delete',
+            targetType: 'bot',
+            targetId: $id,
+            meta: ['name' => $bot->name],
+            request: $request,
+        );
 
         return response()->json(null, 204);
     }

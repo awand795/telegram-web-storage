@@ -4,12 +4,17 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Webhook;
+use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class WebhookController extends Controller
 {
+    public function __construct(
+        private AuditService $auditService,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $webhooks = Webhook::where('user_id', $request->user()->id)->get();
@@ -32,6 +37,15 @@ class WebhookController extends Controller
             'active' => true,
         ]);
 
+        $this->auditService->log(
+            userId: $request->user()->id,
+            action: 'create',
+            targetType: 'webhook',
+            targetId: $webhook->id,
+            meta: ['url' => $request->url, 'events' => $request->events],
+            request: $request,
+        );
+
         return response()->json(['data' => $webhook], 201);
     }
 
@@ -39,6 +53,14 @@ class WebhookController extends Controller
     {
         $webhook = Webhook::where('user_id', $request->user()->id)->findOrFail($id);
         $webhook->delete();
+
+        $this->auditService->log(
+            userId: $request->user()->id,
+            action: 'delete',
+            targetType: 'webhook',
+            targetId: $id,
+            request: $request,
+        );
 
         return response()->json(null, 204);
     }

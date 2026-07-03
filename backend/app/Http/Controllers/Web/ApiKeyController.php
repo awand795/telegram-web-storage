@@ -5,12 +5,16 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\ApiKey;
 use App\Services\ApiKeyService;
+use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ApiKeyController extends Controller
 {
-    public function __construct(private ApiKeyService $apiKeyService) {}
+    public function __construct(
+        private ApiKeyService $apiKeyService,
+        private AuditService $auditService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -33,16 +37,34 @@ class ApiKeyController extends Controller
 
         $plaintext = $this->apiKeyService->generate($apiKey);
 
+        $this->auditService->log(
+            userId: $request->user()->id,
+            action: 'create',
+            targetType: 'api_key',
+            targetId: $apiKey->id,
+            meta: ['name' => $request->name],
+            request: $request,
+        );
+
         return response()->json([
             'data' => $apiKey,
             'plain_text_key' => $plaintext,
         ], 201);
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
-        $apiKey = ApiKey::findOrFail($id);
+        $apiKey = ApiKey::where('user_id', $request->user()->id)->findOrFail($id);
         $this->apiKeyService->revoke($apiKey);
+
+        $this->auditService->log(
+            userId: $request->user()->id,
+            action: 'revoke',
+            targetType: 'api_key',
+            targetId: $id,
+            meta: ['name' => $apiKey->name],
+            request: $request,
+        );
 
         return response()->json(null, 204);
     }

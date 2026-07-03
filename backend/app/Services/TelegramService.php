@@ -84,6 +84,19 @@ class TelegramService
         return $response->successful();
     }
 
+    public function getMe(string $botToken): ?array
+    {
+        $url = $this->apiBase . $botToken . '/getMe';
+
+        $response = Http::get($url);
+
+        if (!$response->successful()) {
+            return null;
+        }
+
+        return $response->json()['result'] ?? null;
+    }
+
     public function getChatId(string $botToken): ?string
     {
         $url = $this->apiBase . $botToken . '/getUpdates';

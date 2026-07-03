@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -12,6 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        private AuditService $auditService,
+    ) {}
+
     // === Email/Password Auth ===
 
     public function register(Request $request): JsonResponse
@@ -31,6 +36,15 @@ class AuthController extends Controller
         ]);
 
         $token = $user->createToken('auth-token')->plainTextToken;
+
+        $this->auditService->log(
+            userId: $user->id,
+            action: 'create',
+            targetType: 'user',
+            targetId: $user->id,
+            meta: ['name' => $request->name, 'email' => $request->email],
+            request: $request,
+        );
 
         return response()->json([
             'user' => $user,
@@ -54,6 +68,14 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
+
+        $this->auditService->log(
+            userId: $user->id,
+            action: 'login',
+            targetType: 'user',
+            targetId: $user->id,
+            request: $request,
+        );
 
         return response()->json([
             'user' => $user,
@@ -97,7 +119,7 @@ class AuthController extends Controller
 
         if (!hash_equals($hash, $checkHash)) {
             Log::warning('Telegram OAuth hash verification failed', ['telegram_id' => $request->id]);
-            return redirect('/login?error=invalid_hash');
+            return redirect(config('services.frontend_url') . '/login?error=invalid_hash');
         }
 
         $user = User::updateOrCreate(
@@ -109,9 +131,19 @@ class AuthController extends Controller
             ]
         );
 
-        auth()->login($user, true);
+        // Generate Sanctum token instead of session-based login
+        $token = $user->createToken('auth-token')->plainTextToken;
 
-        return redirect(config('services.frontend_url') . '/dashboard');
+        $this->auditService->log(
+            userId: $user->id,
+            action: 'login',
+            targetType: 'user',
+            targetId: $user->id,
+            meta: ['method' => 'telegram_oauth'],
+        );
+
+        // Redirect to frontend with token as query param
+        return redirect(config('services.frontend_url') . '/login?token=' . $token);
     }
 
     public function me(Request $request): JsonResponse

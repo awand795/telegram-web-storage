@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\File;
+use App\Services\AuditService;
 use App\Services\StorageService;
 use App\Services\TelegramService;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,7 @@ class FileController extends Controller
     public function __construct(
         private StorageService $storageService,
         private TelegramService $telegramService,
+        private AuditService $auditService,
     ) {}
 
     public function upload(Request $request): JsonResponse
@@ -35,6 +37,15 @@ class FileController extends Controller
             $user,
             $bot,
             $request->input('folder_id'),
+        );
+
+        $this->auditService->log(
+            userId: $user->id,
+            action: 'upload',
+            targetType: 'file',
+            targetId: $file->id,
+            meta: ['name' => $file->name, 'size' => $file->size],
+            request: $request,
         );
 
         return response()->json([
@@ -127,7 +138,7 @@ class FileController extends Controller
         $file = $query->findOrFail($id);
         $bot = $file->bot;
 
-        $this->storageService->delete($file, $bot);
+        $this->storageService->delete($file, $bot, $request);
 
         return response()->json(null, 204);
     }

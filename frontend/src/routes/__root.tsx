@@ -16,7 +16,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootLayout() {
-  const { isAuthenticated, user, setUser, clearAuth, isLoading } = useAuthStore()
+  const { isAuthenticated, setUser, clearAuth, isLoading } = useAuthStore()
   const location = useLocation()
   const router = useRouter()
   const isPublicPage = location.pathname === '/login' || location.pathname === '/register'
