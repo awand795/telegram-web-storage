@@ -1,11 +1,12 @@
+import React, { useRef, useState } from 'react'
 import { createRoute, Link } from '@tanstack/react-router'
 import { Route as rootRoute } from '@/routes/__root'
-import { useFiles, useDeleteFile } from '@/queries'
-import { useUploadStore } from '@/stores/uploadStore'
+import { useFiles, useDeleteFile, useUploadFile } from '@/queries'
 import { useFilterStore } from '@/stores/filterStore'
 import { formatBytes, relativeTime } from '@/lib/utils'
 import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
+import { Upload, AlertCircle } from 'lucide-react'
 
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
@@ -13,11 +14,54 @@ export const Route = createRoute({
   component: FilesPage,
 })
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB (Telegram Bot API limit)
+const MAX_FILE_SIZE_MB = 50
+
 function FilesPage() {
   const { searchQuery, sortBy, setSearch, setSort } = useFilterStore()
-  const { data: files, isLoading } = useFiles({ search: searchQuery, sort: sortBy })
+  const { data: files, isLoading, refetch } = useFiles({ search: searchQuery, sort: sortBy })
   const deleteFile = useDeleteFile()
-  const queue = useUploadStore((s) => s.queue)
+  const uploadFile = useUploadFile()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [sizeError, setSizeError] = useState<string | null>(null)
+
+  const handleUploadClick = () => {
+    setSizeError(null)
+    fileInputRef.current?.click()
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Reset input so same file can be selected again
+    e.target.value = ''
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      setSizeError(`File "${file.name}" is too large (${formatBytes(file.size)}). Maximum size is ${MAX_FILE_SIZE_MB}MB.`)
+      toast.error(`File too large! Max ${MAX_FILE_SIZE_MB}MB`)
+      return
+    }
+
+    setSizeError(null)
+    setUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      await uploadFile.mutateAsync(formData)
+      toast.success(`"${file.name}" uploaded successfully!`)
+      refetch()
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Upload failed'
+      toast.error(msg)
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const handleDelete = async (id: string, name: string) => {
     if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return
@@ -32,13 +76,48 @@ function FilesPage() {
           <h1 className="text-2xl font-semibold text-text-primary">Files</h1>
           <p className="text-sm text-text-muted">Manage your Telegram storage</p>
         </div>
-        <Link
-          to="/files"
-          className="inline-flex h-9 items-center gap-2 rounded-lg bg-accent-primary px-4 text-sm font-medium text-white hover:bg-accent-primary/90"
-        >
-          + Upload
-        </Link>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-text-muted">Max {MAX_FILE_SIZE_MB}MB</span>
+          <button
+            onClick={handleUploadClick}
+            disabled={uploading}
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-accent-primary px-4 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-50 cursor-pointer"
+          >
+            <Upload className="h-4 w-4" />
+            {uploading ? 'Uploading...' : 'Upload'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+        </div>
       </div>
+
+      {/* Size Error Alert */}
+      <AnimatePresence>
+        {sizeError && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="flex items-start gap-3 rounded-xl border border-danger/30 bg-danger/5 p-4"
+          >
+            <AlertCircle className="h-5 w-5 text-danger shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-text-primary">File too large</p>
+              <p className="text-xs text-text-secondary mt-1">{sizeError}</p>
+            </div>
+            <button
+              onClick={() => setSizeError(null)}
+              className="text-xs text-text-muted hover:text-text-primary"
+            >
+              Dismiss
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Search & Filter */}
       <div className="flex items-center gap-3">
@@ -64,46 +143,6 @@ function FilesPage() {
           <option value="size_asc">Smallest</option>
         </select>
       </div>
-
-      {/* Upload Queue */}
-      <AnimatePresence>
-        {queue.length > 0 && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden rounded-xl border border-border-default bg-surface"
-          >
-            <div className="border-b border-border-default px-4 py-2">
-              <span className="text-xs font-medium text-text-secondary">Upload Queue</span>
-            </div>
-            <div className="space-y-1 p-2">
-              {queue.map((item) => (
-                <div key={item.id} className="rounded-lg bg-surface-elevated px-3 py-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-text-primary">{item.name}</span>
-                    <span className="text-text-muted">
-                      {item.status === 'uploading'
-                        ? `${item.progress}%`
-                        : item.status}
-                    </span>
-                  </div>
-                  {item.status === 'uploading' && (
-                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-zinc-800">
-                      <motion.div
-                        className="h-full rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${item.progress}%` }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* File List */}
       <div className="overflow-hidden rounded-xl border border-border-default">
