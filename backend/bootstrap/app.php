@@ -21,12 +21,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'rate-limit-key' => RateLimitByKey::class,
         ]);
 
-        // Exclude auth routes from CSRF for API token-based auth
+        // Exclude web routes from CSRF (using Bearer tokens, not cookies)
         $middleware->validateCsrfTokens(except: [
             '/auth/register',
             '/auth/login',
             '/auth/logout',
-            '/web/logout',
+            '/web/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
