@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Copy package files for caching
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN rm -rf node_modules package-lock.json && npm install
 
 # Copy application
 COPY . .

@@ -1,0 +1,8 @@
+[32mLoading composer repositories with package information[39m
+[32mUpdating dependencies[39m
+[37;41mYour requirements could not be resolved to an installable set of packages.[39;49m
+
+  Problem 1
+    - Root composer.json requires swoole/swoole ^6.0, found swoole/swoole[v6.0.0, ..., v6.2.1] but these were not loaded, likely because it conflicts with another require.
+
+[30;43mRunning update with --no-dev does not mean require-dev is ignored, it just means the packages will not be installed. If dev requirements are blocking the update you have to resolve those problems.[39;49m

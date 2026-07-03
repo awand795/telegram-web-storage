@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:17-alpine
@@ -9,7 +7,7 @@ services:
       POSTGRES_USER: telestore
       POSTGRES_PASSWORD: telestore_secret
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -75,6 +73,8 @@ services:
       dockerfile: Dockerfile
     container_name: telestore-queue
     command: php artisan queue:work --queue=uploads,webhooks,default --sleep=3 --tries=3
+    healthcheck:
+      test: ["NONE"]
     environment:
       APP_NAME: TeleStore
       APP_ENV: local
@@ -111,6 +111,7 @@ services:
       VITE_API_URL: http://localhost:8000
     volumes:
       - ./frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
 

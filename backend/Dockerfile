@@ -1,12 +1,12 @@
-FROM php:8.4-cli-alpine AS base
+FROM dunglas/frankenphp:php8.4-bookworm AS base
 
-# System dependencies
-RUN apk add --no-cache \
-    postgresql-dev \
-    libzip-dev \
-    unzip \
-    curl \
-    && docker-php-ext-install pdo_pgsql zip bcmath
+# System dependencies & PHP extensions
+RUN install-php-extensions \
+    pdo_pgsql \
+    zip \
+    bcmath \
+    pcntl \
+    redis
 
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -29,5 +29,4 @@ RUN composer dump-autoload --optimize \
 
 EXPOSE 8000
 
-# APP_KEY must be set via environment variable or .env
-CMD ["php", "artisan", "octane:start", "--server=swoole", "--host=0.0.0.0", "--port=8000"]
+CMD ["php", "artisan", "octane:start", "--server=frankenphp", "--host=0.0.0.0", "--port=8000"]
