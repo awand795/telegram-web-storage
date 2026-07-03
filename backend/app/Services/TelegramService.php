@@ -8,7 +8,21 @@ use Illuminate\Support\Facades\Log;
 
 class TelegramService
 {
-    private string $apiBase = 'https://api.telegram.org/bot';
+    private string $apiBase;
+    private string $fileBase;
+
+    public function __construct()
+    {
+        // Use local Bot API server if configured, otherwise fallback to cloud API
+        $localApi = config('services.telegram.local_api_url');
+        if ($localApi) {
+            $this->apiBase = rtrim($localApi, '/') . '/bot';
+            $this->fileBase = rtrim($localApi, '/') . '/file/bot';
+        } else {
+            $this->apiBase = 'https://api.telegram.org/bot';
+            $this->fileBase = 'https://api.telegram.org/file/bot';
+        }
+    }
 
     public function sendDocument(Bot $bot, string $filePath, string $fileName): array
     {
@@ -54,7 +68,7 @@ class TelegramService
 
     public function getFileUrl(string $botToken, string $filePath): string
     {
-        return "https://api.telegram.org/file/bot{$botToken}/{$filePath}";
+        return $this->fileBase . $botToken . '/' . $filePath;
     }
 
     public function deleteMessage(Bot $bot, string $messageId): bool

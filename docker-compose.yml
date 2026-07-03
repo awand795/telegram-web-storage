@@ -60,6 +60,7 @@ services:
       CORS_ALLOWED_ORIGINS: http://localhost:7888
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_LOCAL_API_URL: ${TELEGRAM_LOCAL_API_URL:-}
     volumes:
       - ./backend:/var/www
     depends_on:
@@ -67,6 +68,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      telegram-bot-api:
+        condition: service_started
     # Graceful shutdown: 30s for ongoing requests to finish
     stop_grace_period: 30s
     healthcheck:
@@ -102,6 +105,7 @@ services:
       SESSION_DRIVER: redis
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_LOCAL_API_URL: ${TELEGRAM_LOCAL_API_URL:-}
     volumes:
       - ./backend:/var/www
     depends_on:
@@ -127,6 +131,20 @@ services:
     depends_on:
       - backend
 
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    container_name: telestore-tg-api
+    environment:
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
+      TELEGRAM_LOCAL: 1
+    volumes:
+      - telegram_bot_api_data:/var/lib/telegram-bot-api
+    ports:
+      - '8081:8081'
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
+  telegram_bot_api_data:

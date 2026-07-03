@@ -10,6 +10,8 @@ volumes:
     driver: local
   redis_data:
     driver: local
+  telegram_bot_api_data:
+    driver: local
 
 services:
   postgres:
@@ -136,6 +138,7 @@ services:
       CORS_ALLOWED_ORIGINS: http://localhost:7888
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-lucidfordream_bot}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8833059580:AAHCvXR-umWt2eAuA7BeoYBdMM6S51uVAqg}
+      TELEGRAM_LOCAL_API_URL: ${TELEGRAM_LOCAL_API_URL:-}
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:8000/up.php']
       interval: 15s
@@ -203,6 +206,7 @@ services:
       SESSION_DRIVER: redis
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-lucidfordream_bot}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8833059580:AAHCvXR-umWt2eAuA7BeoYBdMM6S51uVAqg}
+      TELEGRAM_LOCAL_API_URL: ${TELEGRAM_LOCAL_API_URL:-}
     stop_grace_period: 30m
     healthcheck:
       disable: true
@@ -284,3 +288,29 @@ services:
         parallelism: 1
         failure_action: pause
         monitor: 60s
+
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    networks:
+      - telestore
+    ports:
+      - target: 8081
+        published: 8081
+        protocol: tcp
+    environment:
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_LOCAL: 1
+    volumes:
+      - telegram_bot_api_data:/var/lib/telegram-bot-api
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.telestore.backend == true
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
