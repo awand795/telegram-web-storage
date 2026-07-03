@@ -11,16 +11,6 @@ volumes:
   redis_data:
     driver: local
 
-secrets:
-  app_key:
-    external: true
-  db_password:
-    external: true
-  telegram_bot_token:
-    external: true
-  telegram_bot_username:
-    external: true
-
 services:
   postgres:
     image: postgres:17-alpine
@@ -127,32 +117,27 @@ services:
       APP_NAME: TeleStore
       APP_ENV: production
       APP_DEBUG: 'false'
-      APP_KEY_FILE: /run/secrets/app_key
-      APP_URL: https://api.telestore.dev
-      FRONTEND_URL: https://telestore.dev
+      APP_KEY: ${APP_KEY:-base64:0qUiENuALUIfrxw22Aor1fX7+zk5bop23/ret7Y2PDA=}
+      APP_URL: http://localhost:8000
+      FRONTEND_URL: http://localhost:7888
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
       DB_DATABASE: telestore
       DB_USERNAME: telestore
-      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_PASSWORD: telestore_secret
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ''
       QUEUE_CONNECTION: redis
       CACHE_STORE: redis
       SESSION_DRIVER: redis
-      SANCTUM_STATEFUL_DOMAINS: telestore.dev,api.telestore.dev
-      CORS_ALLOWED_ORIGINS: https://telestore.dev
-      TELEGRAM_BOT_USERNAME_FILE: /run/secrets/telegram_bot_username
-      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
-    secrets:
-      - app_key
-      - db_password
-      - telegram_bot_username
-      - telegram_bot_token
+      SANCTUM_STATEFUL_DOMAINS: localhost:7888,localhost
+      CORS_ALLOWED_ORIGINS: http://localhost:7888
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-lucidfordream_bot}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8833059580:AAHCvXR-umWt2eAuA7BeoYBdMM6S51uVAqg}
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8000/up']
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/up.php']
       interval: 15s
       timeout: 10s
       retries: 3
@@ -162,7 +147,7 @@ services:
       - redis
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
       placement:
         constraints:
           - node.labels.telestore.backend == true
@@ -189,12 +174,6 @@ services:
         parallelism: 1
         failure_action: pause
         monitor: 60s
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.services.telestore-backend.loadbalancer.server.port=8000"
-        - "traefik.http.routers.telestore-backend.rule=Host(`api.telestore.dev`)"
-        - "traefik.http.routers.telestore-backend.entrypoints=websecure"
-        - "traefik.http.routers.telestore-backend.tls.certresolver=letsencrypt"
 
   queue-worker:
     image: ${REGISTRY:-localhost}/telestore-backend:${TAG:-latest}
@@ -209,33 +188,22 @@ services:
       APP_NAME: TeleStore
       APP_ENV: production
       APP_DEBUG: 'false'
-      APP_KEY_FILE: /run/secrets/app_key
+      APP_KEY: ${APP_KEY:-base64:0qUiENuALUIfrxw22Aor1fX7+zk5bop23/ret7Y2PDA=}
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: 5432
       DB_DATABASE: telestore
       DB_USERNAME: telestore
-      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_PASSWORD: telestore_secret
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ''
       QUEUE_CONNECTION: redis
       CACHE_STORE: redis
       SESSION_DRIVER: redis
-      TELEGRAM_BOT_USERNAME_FILE: /run/secrets/telegram_bot_username
-      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
-    secrets:
-      - app_key
-      - db_password
-      - telegram_bot_username
-      - telegram_bot_token
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-lucidfordream_bot}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8833059580:AAHCvXR-umWt2eAuA7BeoYBdMM6S51uVAqg}
     stop_grace_period: 30m
-    healthcheck:
-      test: ['CMD-SHELL', 'php artisan queue:status --queue=uploads,webhooks,default || exit 1']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     depends_on:
       - backend
       - redis
@@ -282,18 +250,12 @@ services:
         protocol: tcp
         mode: host
     environment:
-      VITE_API_URL: https://api.telestore.dev
+      VITE_API_URL: http://localhost:8000
     depends_on:
       - backend
-    healthcheck:
-      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:5173/']
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
       placement:
         constraints:
           - node.labels.telestore.frontend == true
@@ -320,9 +282,3 @@ services:
         parallelism: 1
         failure_action: pause
         monitor: 60s
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.services.telestore-frontend.loadbalancer.server.port=5173"
-        - "traefik.http.routers.telestore-frontend.rule=Host(`telestore.dev`)"
-        - "traefik.http.routers.telestore-frontend.entrypoints=websecure"
-        - "traefik.http.routers.telestore-frontend.tls.certresolver=letsencrypt"

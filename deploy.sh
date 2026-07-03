@@ -278,16 +278,31 @@ rollback() {
 run_migrations() {
   info "Running database migrations..."
 
-  # Dapatkan task ID dari service backend yang running
-  local task_id=$(docker ps --filter "name=${STACK_NAME}_backend" \
-    --format '{{.ID}}' | head -1)
+  local container=$(docker ps --filter "name=${STACK_NAME}_backend" --format '{{.ID}}' | head -1)
 
-  if [ -n "$task_id" ]; then
-    docker exec "$task_id" php artisan migrate --force
+  if [ -n "$container" ]; then
+    docker exec "$container" php artisan migrate --force
     ok "Migrations completed"
+
+    # Seed admin user if not exists
+    local user_count=$(docker exec "$container" php artisan tinker --execute="echo App\\Models\\User::count();" 2>/dev/null | tail -1)
+    if [ "$user_count" = "0" ] || [ -z "$user_count" ]; then
+      info "Creating default admin user..."
+      docker exec -i "$container" php artisan tinker <<'TINKER'
+App\Models\User::create([
+    "name" => "Admin",
+    "email" => "admin@test.com",
+    "password" => Illuminate\Support\Facades\Hash::make("admin123"),
+    "telegram_id" => "email_admin@test.com",
+    "role" => "admin"
+]);
+echo "Admin user created (admin@test.com / admin123)\n";
+TINKER
+    else
+      ok "Users exist, skipping seed"
+    fi
   else
     warn "No running backend container found. Skipping migrations."
-    warn "Run manually: docker exec -it \$(docker ps -q -f name=${STACK_NAME}_backend) php artisan migrate --force"
   fi
 }
 
