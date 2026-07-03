@@ -21,8 +21,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'rate-limit-key' => RateLimitByKey::class,
         ]);
 
-        $middleware->statefulApi();
-
         // Exclude auth routes from CSRF for API token-based auth
         $middleware->validateCsrfTokens(except: [
             '/auth/register',
