@@ -23,6 +23,8 @@ Route::prefix('web')->middleware('auth:sanctum')->group(function () {
     // Bots
     Route::get('/bots', [BotController::class, 'index']);
     Route::post('/bots', [BotController::class, 'store']);
+    Route::patch('/bots/{id}', [BotController::class, 'update']);
+    Route::post('/bots/{id}/refresh-chat', [BotController::class, 'refreshChatId']);
     Route::delete('/bots/{id}', [BotController::class, 'destroy']);
 
     // API Keys

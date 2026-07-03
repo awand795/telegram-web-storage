@@ -48,4 +48,34 @@ class BotController extends Controller
 
         return response()->json(null, 204);
     }
+
+    public function update(Request $request, string $id): JsonResponse
+    {
+        $bot = Bot::where('user_id', $request->user()->id)->findOrFail($id);
+
+        $request->validate([
+            'chat_id' => 'nullable|string|max:100',
+        ]);
+
+        if ($request->has('chat_id')) {
+            $bot->update(['chat_id' => $request->chat_id]);
+        }
+
+        return response()->json($bot);
+    }
+
+    public function refreshChatId(Request $request, string $id): JsonResponse
+    {
+        $bot = Bot::where('user_id', $request->user()->id)->findOrFail($id);
+        $token = $bot->token_encrypted;
+
+        $chatId = $this->telegram->getChatId($token);
+
+        if ($chatId) {
+            $bot->update(['chat_id' => $chatId]);
+            return response()->json(['chat_id' => $chatId, 'message' => 'Chat ID updated']);
+        }
+
+        return response()->json(['chat_id' => null, 'message' => 'No chat found. Send a message to the bot first.'], 404);
+    }
 }

@@ -129,6 +129,32 @@ export function useDeleteBot() {
   })
 }
 
+export function useUpdateBot() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; chat_id: string }) => {
+      const res = await api.patch(`/web/bots/${id}`, data)
+      return res.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bots'] })
+    },
+  })
+}
+
+export function useRefreshBotChat() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.post(`/web/bots/${id}/refresh-chat`)
+      return res.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bots'] })
+    },
+  })
+}
+
 // === API Keys ===
 export function useApiKeys() {
   return useQuery({
