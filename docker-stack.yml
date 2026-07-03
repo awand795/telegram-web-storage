@@ -1,0 +1,328 @@
+version: '3.9'
+
+networks:
+  telestore:
+    driver: overlay
+    attachable: true
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+secrets:
+  app_key:
+    external: true
+  db_password:
+    external: true
+  telegram_bot_token:
+    external: true
+  telegram_bot_username:
+    external: true
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    networks:
+      - telestore
+    ports:
+      - target: 5432
+        published: 5433
+        protocol: tcp
+        mode: host
+    environment:
+      POSTGRES_DB: telestore
+      POSTGRES_USER: telestore
+      POSTGRES_PASSWORD: telestore_secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U telestore']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.telestore.db == true
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        failure_action: pause
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - telestore
+    ports:
+      - target: 6379
+        published: 6379
+        protocol: tcp
+        mode: host
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.telestore.redis == true
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        failure_action: pause
+
+  backend:
+    image: ${REGISTRY:-localhost}/telestore-backend:${TAG:-latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    networks:
+      - telestore
+    ports:
+      - target: 8000
+        published: 8000
+        protocol: tcp
+        mode: host
+    environment:
+      APP_NAME: TeleStore
+      APP_ENV: production
+      APP_DEBUG: 'false'
+      APP_KEY_FILE: /run/secrets/app_key
+      APP_URL: https://api.telestore.dev
+      FRONTEND_URL: https://telestore.dev
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: telestore
+      DB_USERNAME: telestore
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ''
+      QUEUE_CONNECTION: redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      SANCTUM_STATEFUL_DOMAINS: telestore.dev,api.telestore.dev
+      CORS_ALLOWED_ORIGINS: https://telestore.dev
+      TELEGRAM_BOT_USERNAME_FILE: /run/secrets/telegram_bot_username
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
+    secrets:
+      - app_key
+      - db_password
+      - telegram_bot_username
+      - telegram_bot_token
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/up']
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      - postgres
+      - redis
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.labels.telestore.backend == true
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: any
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+      rollback_config:
+        parallelism: 1
+        failure_action: pause
+        monitor: 60s
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.services.telestore-backend.loadbalancer.server.port=8000"
+        - "traefik.http.routers.telestore-backend.rule=Host(`api.telestore.dev`)"
+        - "traefik.http.routers.telestore-backend.entrypoints=websecure"
+        - "traefik.http.routers.telestore-backend.tls.certresolver=letsencrypt"
+
+  queue-worker:
+    image: ${REGISTRY:-localhost}/telestore-backend:${TAG:-latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    networks:
+      - telestore
+    command: php artisan queue:work --queue=uploads,webhooks,default --sleep=3 --tries=3 --timeout=1200
+    environment:
+      APP_NAME: TeleStore
+      APP_ENV: production
+      APP_DEBUG: 'false'
+      APP_KEY_FILE: /run/secrets/app_key
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: telestore
+      DB_USERNAME: telestore
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ''
+      QUEUE_CONNECTION: redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      TELEGRAM_BOT_USERNAME_FILE: /run/secrets/telegram_bot_username
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_bot_token
+    secrets:
+      - app_key
+      - db_password
+      - telegram_bot_username
+      - telegram_bot_token
+    stop_grace_period: 30m
+    healthcheck:
+      test: ['CMD-SHELL', 'php artisan queue:status --queue=uploads,webhooks,default || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - backend
+      - redis
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.telestore.queue == true
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: any
+        delay: 15s
+        max_attempts: 5
+        window: 180s
+      update_config:
+        parallelism: 1
+        delay: 5s
+        order: start-first
+        failure_action: rollback
+        monitor: 120s
+        max_failure_ratio: 0.5
+      rollback_config:
+        parallelism: 1
+        failure_action: pause
+        monitor: 120s
+
+  frontend:
+    image: ${REGISTRY:-localhost}/telestore-frontend:${TAG:-latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    networks:
+      - telestore
+    ports:
+      - target: 5173
+        published: 7888
+        protocol: tcp
+        mode: host
+    environment:
+      VITE_API_URL: https://api.telestore.dev
+    depends_on:
+      - backend
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:5173/']
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.labels.telestore.frontend == true
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      restart_policy:
+        condition: any
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 60s
+        max_failure_ratio: 0.3
+      rollback_config:
+        parallelism: 1
+        failure_action: pause
+        monitor: 60s
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.services.telestore-frontend.loadbalancer.server.port=5173"
+        - "traefik.http.routers.telestore-frontend.rule=Host(`telestore.dev`)"
+        - "traefik.http.routers.telestore-frontend.entrypoints=websecure"
+        - "traefik.http.routers.telestore-frontend.tls.certresolver=letsencrypt"

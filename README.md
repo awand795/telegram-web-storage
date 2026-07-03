@@ -406,27 +406,180 @@ npm run dev                    # Dev server (port 5173)
 npm run build                  # Production build
 npm run preview                # Preview production build
 
-# === Docker ===
+# === Docker Compose (Development) ===
 docker compose up -d           # Start all services
 docker compose down            # Stop all services
 docker compose logs -f         # Follow logs
 docker compose exec backend php artisan migrate   # Run migrations in container
+
+# === Docker Swarm (Production) ===
+./deploy.sh deploy             # Full deployment (build → deploy → migrate)
+./deploy.sh status             # Check deployment status
+./deploy.sh logs backend       # View service logs
+./deploy.sh rollback           # Rollback to previous version
 ```
 
 ---
 
-## Deployment
+## Docker Swarm — Zero-Downtime Production Deployment
 
-### Production Checklist
+TeleStore menggunakan **Docker Swarm** untuk production deployment dengan **zero-downtime rolling updates** dan **graceful shutdown 30 menit** untuk queue worker.
 
-- [ ] Set `APP_ENV=production` dan `APP_DEBUG=false`
-- [ ] Generate strong `APP_KEY`
-- [ ] Set `SESSION_DRIVER=redis`
-- [ ] Set `SANCTUM_STATEFUL_DOMAINS` dengan domain production
-- [ ] Set `CORS_ALLOWED_ORIGINS` dengan domain frontend
-- [ ] Setup Supervisor untuk queue worker
-- [ ] Enable HTTPS + HSTS
-- [ ] Run `php artisan optimize` untuk cache config & routes
+### Arsitektur Swarm
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Docker Swarm Cluster                       │
+│                                                               │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐ │
+│  │ Backend  │  │ Backend  │  │ Frontend │  │ Frontend     │ │
+│  │ (replica1)│  │ (replica2)│  │ (replica1)│  │ (replica2)   │ │
+│  │ :8000    │  │ :8000    │  │ :5173    │  │ :5173        │ │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────────┘ │
+│                                                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────┐ │
+│  │ PostgreSQL   │  │ Redis        │  │ Queue Worker        │ │
+│  │ (1 replica)  │  │ (1 replica)  │  │ (1 replica)         │ │
+│  │ :5432        │  │ :6379        │  │ grace: 30 menit     │ │
+│  └──────────────┘  └──────────────┘  └─────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Konsep Zero-Downtime
+
+| Fitur | Konfigurasi | Penjelasan |
+|-------|------------|------------|
+| **Rolling update** | `order: start-first` | Container baru start **sebelum** container lama distop |
+| **Parallelism** | `parallelism: 1` | Update 1 container per waktu |
+| **Health check** | `interval: 15s` | Cek health sebelum traffic dialihkan |
+| **Auto-rollback** | `failure_action: rollback` | Rollback otomatis jika update gagal |
+| **Graceful shutdown** | `stop_grace_period: 30m` | Queue worker diberi **30 menit** untuk selesaikan upload |
+
+### Graceful Shutdown 30 Menit
+
+Ketika queue worker menerima sinyal **SIGTERM** (saat deployment/restart):
+
+1. Docker mengirim SIGTERM ke container
+2. Laravel `queue:work` menangkap SIGTERM dan **tidak memproses job baru**
+3. **Job yang sedang berjalan** (upload file ke Telegram) tetap dilanjutkan
+4. Docker menunggu **30 menit** (stop_grace_period) sebelum mengirim SIGKILL
+5. Jika job selesai dalam < 30 menit, container berhenti normal
+6. Container baru sudah running (start-first order), jadi tidak ada downtime
+
+### Cara Deploy
+
+#### 1. Inisialisasi Swarm (Pertama Kali)
+
+```bash
+# Inisialisasi Docker Swarm
+docker swarm init
+
+# Setup secrets dari .env
+./deploy.sh setup
+```
+
+#### 2. Deploy Aplikasi
+
+```bash
+# Full deployment: build image → deploy ke swarm → migrate
+./deploy.sh deploy
+
+# Atau dengan tag versi spesifik
+TAG=v1.2.3 ./deploy.sh deploy
+
+# Atau dengan registry kustom
+REGISTRY=ghcr.io ./deploy.sh deploy
+```
+
+#### 3. Update Aplikasi (Tanpa Downtime)
+
+```bash
+# Rebuild & deploy dengan rolling update
+./deploy.sh deploy-only
+
+# Rollback jika terjadi masalah
+./deploy.sh rollback
+```
+
+### File Terkait
+
+| File | Deskripsi |
+|------|-----------|
+| `docker-stack.yml` | Swarm stack definition (production) |
+| `docker-compose.yml` | Development compose (local) |
+| `deploy.sh` | Deployment script (build, deploy, rollback) |
+| `backend/Dockerfile` | Multi-stage Dockerfile (base → build → production) |
+| `backend/docker/Caddyfile` | FrankenPHP Caddy config untuk production |
+
+### Node Labels
+
+Swarm menggunakan node labels untuk menempatkan service di node yang tepat:
+
+```bash
+# Set label pada node manager (single-node cluster)
+NODE=$(docker node ls --format '{{.ID}}' | head -1)
+docker node update --label-add telestore.db=true "$NODE"
+docker node update --label-add telestore.redis=true "$NODE"
+docker node update --label-add telestore.backend=true "$NODE"
+docker node update --label-add telestore.queue=true "$NODE"
+docker node update --label-add telestore.frontend=true "$NODE"
+```
+
+### Secrets Management
+
+Password dan token disimpan sebagai **Docker Secrets** (tidak ada di .env):
+
+```bash
+# Membuat secrets (dilakukan otomatis oleh deploy.sh setup)
+echo "base64:your-app-key" | docker secret create app_key -
+echo "your-db-password" | docker secret create db_password -
+echo "your-bot-token" | docker secret create telegram_bot_token -
+echo "your-bot-username" | docker secret create telegram_bot_username -
+```
+
+---
+
+## Struktur Project (Lengkap)
+
+```
+telegramstorage/
+├── backend/                    # Laravel API
+│   ├── app/
+│   │   ├── Http/
+│   │   │   ├── Controllers/
+│   │   │   │   ├── Api/V1/     # AI Agent API endpoints
+│   │   │   │   └── Web/        # Web SPA endpoints (Auth, Bots, dll)
+│   │   │   └── Middleware/     # AdminMiddleware, ApiKeyAuth, RateLimitByKey
+│   │   ├── Jobs/              # UploadFileToTelegramJob, WebhookDispatchJob
+│   │   ├── Models/            # User (dengan role), Bot, File, Folder, ApiKey, Webhook, AuditLog
+│   │   └── Services/          # TelegramService, ApiKeyService, StorageService
+│   ├── docker/
+│   │   └── Caddyfile          # FrankenPHP Caddy production config
+│   ├── database/
+│   │   ├── migrations/        # 10 migration files
+│   │   └── seeders/
+│   ├── routes/
+│   │   ├── api.php            # API v1 routes
+│   │   └── web.php            # Web SPA + Auth + Admin routes
+│   ├── Dockerfile             # Multi-stage (base → build → production)
+│   └── bootstrap/app.php      # Middleware config
+│
+├── frontend/                   # React SPA
+│   ├── src/
+│   │   ├── routes/            # TanStack Router (10 pages)
+│   │   ├── components/
+│   │   │   └── ui/            # shadcn/ui components
+│   │   ├── stores/            # Zustand (auth, bot, filter, ui, upload)
+│   │   ├── queries/           # TanStack Query hooks
+│   │   ├── lib/               # Axios (Bearer token interceptor)
+│   │   └── types/             # Zod schemas + TS types
+│   └── vite.config.ts         # Proxy /api, /web, /auth
+│
+├── docker-compose.yml         # Dev: 5 services (DB, Redis, API, Queue, Web)
+├── docker-stack.yml           # Swarm: production stack with deploy config
+├── deploy.sh                  # Zero-downtime deployment script
+└── README.md
+```
 
 ---
 

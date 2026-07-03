@@ -33,6 +33,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: build
     container_name: telestore-api
     ports:
       - '8000:8000'
@@ -66,15 +67,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Graceful shutdown: 30s for ongoing requests to finish
+    stop_grace_period: 30s
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/up.php']
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   queue-worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: build
     container_name: telestore-queue
-    command: php artisan queue:work --queue=uploads,webhooks,default --sleep=3 --tries=3
-    healthcheck:
-      test: ["NONE"]
+    command: php artisan queue:work --queue=uploads,webhooks,default --sleep=3 --tries=3 --timeout=1200
     environment:
       APP_NAME: TeleStore
       APP_ENV: local
@@ -99,6 +107,10 @@ services:
     depends_on:
       - backend
       - redis
+    # Graceful shutdown: 30 menit untuk menyelesaikan upload file yang sedang berjalan
+    stop_grace_period: 30m
+    healthcheck:
+      test: ["NONE"]
 
   frontend:
     build:
