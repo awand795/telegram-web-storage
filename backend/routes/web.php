@@ -4,6 +4,7 @@ use App\Http\Controllers\Web\ApiKeyController;
 use App\Http\Controllers\Web\AuditController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\BotController;
+use App\Http\Controllers\Web\UsageController;
 use Illuminate\Support\Facades\Route;
 
 // Public auth routes
@@ -28,6 +29,9 @@ Route::prefix('web')->middleware('auth:sanctum')->group(function () {
     Route::get('/apikeys', [ApiKeyController::class, 'index']);
     Route::post('/apikeys', [ApiKeyController::class, 'store']);
     Route::delete('/apikeys/{id}', [ApiKeyController::class, 'destroy']);
+
+    // Usage (SPA)
+    Route::get('/usage', [UsageController::class, 'index']);
 
     // Admin-only routes
     Route::middleware('admin')->group(function () {

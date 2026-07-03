@@ -208,7 +208,7 @@ export function useUsage() {
   return useQuery({
     queryKey: ['usage'],
     queryFn: async () => {
-      const { data } = await api.get<Usage>('/api/v1/usage')
+      const { data } = await api.get<Usage>('/web/usage')
       return data
     },
     staleTime: 60_000,
