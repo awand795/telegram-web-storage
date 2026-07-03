@@ -20,8 +20,16 @@ class ApiKeyAuth
         }
 
         $key = substr($header, 7);
-        $apiKey = $this->apiKeyService->verify($key);
 
+        // Coba verifikasi sebagai Sanctum token (untuk SPA)
+        $user = $this->resolveSanctumToken($key);
+        if ($user) {
+            $request->setUserResolver(fn () => $user);
+            return $next($request);
+        }
+
+        // Coba verifikasi sebagai API Key (untuk AI Agent)
+        $apiKey = $this->apiKeyService->verify($key);
         if (!$apiKey) {
             return response()->json(['message' => 'Invalid API key'], 401);
         }
@@ -30,5 +38,26 @@ class ApiKeyAuth
         $request->setUserResolver(fn () => $apiKey->user);
 
         return $next($request);
+    }
+
+    private function resolveSanctumToken(string $token): ?\App\Models\User
+    {
+        // Sanctum token format: "1|ts_abc123..."
+        $accessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+        if (!$accessToken) {
+            return null;
+        }
+
+        /** @var \App\Models\User $user */
+        $user = $accessToken->tokenable;
+
+        if (!$user) {
+            return null;
+        }
+
+        // Update last used at
+        $accessToken->forceFill(['last_used_at' => now()])->save();
+
+        return $user;
     }
 }

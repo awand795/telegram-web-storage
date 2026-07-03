@@ -20,7 +20,7 @@ services:
       - target: 5432
         published: 5433
         protocol: tcp
-        mode: host
+
     environment:
       POSTGRES_DB: telestore
       POSTGRES_USER: telestore
@@ -66,7 +66,7 @@ services:
       - target: 6379
         published: 6379
         protocol: tcp
-        mode: host
+
     volumes:
       - redis_data:/data
     healthcheck:
@@ -112,7 +112,7 @@ services:
       - target: 8000
         published: 8000
         protocol: tcp
-        mode: host
+
     environment:
       APP_NAME: TeleStore
       APP_ENV: production
@@ -248,7 +248,7 @@ services:
       - target: 5173
         published: 7888
         protocol: tcp
-        mode: host
+
     environment:
       VITE_API_URL: http://localhost:8000
     depends_on:
