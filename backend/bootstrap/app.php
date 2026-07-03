@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             '/auth/register',
             '/auth/login',
             '/auth/logout',
+            '/web/logout',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
