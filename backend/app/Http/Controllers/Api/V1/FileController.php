@@ -9,6 +9,8 @@ use App\Services\StorageService;
 use App\Services\TelegramService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class FileController extends Controller
 {
@@ -21,7 +23,7 @@ class FileController extends Controller
     public function upload(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => 'required|file|max:2097152',
+            'file' => 'required|file',
             'folder_id' => 'nullable|string|exists:folders,id',
         ]);
 
@@ -44,7 +46,7 @@ class FileController extends Controller
             action: 'upload',
             targetType: 'file',
             targetId: $file->id,
-            meta: ['name' => $file->name, 'size' => $file->size],
+            meta: ['name' => $file->name, 'size' => $file->size, 'is_chunked' => $file->is_chunked],
             request: $request,
         );
 
@@ -52,7 +54,10 @@ class FileController extends Controller
             'job_id' => $file->id,
             'file_id' => null,
             'status' => 'pending',
-            'message' => 'Upload queued. Poll GET /api/v1/files/' . $file->id . ' for completion.',
+            'is_chunked' => $file->is_chunked,
+            'message' => $file->is_chunked
+                ? 'Large file detected. File will be split into chunks and uploaded. Poll GET /api/v1/files/' . $file->id . ' for completion.'
+                : 'Upload queued. Poll GET /api/v1/files/' . $file->id . ' for completion.',
         ], 202);
     }
 
@@ -67,6 +72,9 @@ class FileController extends Controller
         ]);
 
         $query = File::query();
+
+        // Only show top-level files (not chunk children)
+        $query->whereNull('parent_id');
 
         // Regular users only see their own files; admins can see all or filter by user
         if ($request->user()->isAdmin()) {
@@ -100,7 +108,7 @@ class FileController extends Controller
 
     public function show(Request $request, string $id): JsonResponse
     {
-        $query = File::query();
+        $query = File::query()->whereNull('parent_id');
         if (!$request->user()->isAdmin()) {
             $query->where('user_id', $request->user()->id);
         }
@@ -110,12 +118,33 @@ class FileController extends Controller
 
     public function download(Request $request, string $id): mixed
     {
-        $query = File::query();
+        $query = File::query()->whereNull('parent_id');
         if (!$request->user()->isAdmin()) {
             $query->where('user_id', $request->user()->id);
         }
         $file = $query->findOrFail($id);
 
+        // Handle chunked files: reassemble before download
+        if ($file->is_chunked) {
+            if ($file->status !== 'done') {
+                return response()->json(['message' => 'File upload still in progress'], 404);
+            }
+
+            try {
+                $reassembledPath = $this->storageService->reassembleFile($file);
+                $fullPath = Storage::disk('local')->path($reassembledPath);
+
+                return response()->download($fullPath, $file->name)->deleteFileAfterSend();
+            } catch (\Throwable $e) {
+                Log::error('Failed to reassemble chunked file for download', [
+                    'file_id' => $file->id,
+                    'error' => $e->getMessage(),
+                ]);
+                return response()->json(['message' => 'Failed to prepare file for download: ' . $e->getMessage()], 500);
+            }
+        }
+
+        // Normal file: redirect to Telegram file URL
         if (!$file->telegram_file_id) {
             return response()->json(['message' => 'File not ready'], 404);
         }
@@ -131,7 +160,7 @@ class FileController extends Controller
 
     public function destroy(Request $request, string $id): JsonResponse
     {
-        $query = File::query();
+        $query = File::query()->whereNull('parent_id');
         if (!$request->user()->isAdmin()) {
             $query->where('user_id', $request->user()->id);
         }
@@ -150,7 +179,7 @@ class FileController extends Controller
             'tags.*' => 'string|max:50',
         ]);
 
-        $query = File::query();
+        $query = File::query()->whereNull('parent_id');
         if (!$request->user()->isAdmin()) {
             $query->where('user_id', $request->user()->id);
         }

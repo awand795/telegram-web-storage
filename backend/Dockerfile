@@ -19,10 +19,10 @@ RUN install-php-extensions \
     redis
 
 # Increase PHP upload limits for large files (up to 2GB) — must be AFTER extensions
-RUN echo "upload_max_filesize = 2048M" > /usr/local/etc/php/conf.d/uploads.ini \
-    && echo "post_max_size = 2048M" >> /usr/local/etc/php/conf.d/uploads.ini \
-    && echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/uploads.ini \
-    && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/uploads.ini
+RUN echo "upload_max_filesize = 20000M" > /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "post_max_size = 20000M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "memory_limit = 512M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "max_execution_time = 3600" >> /usr/local/etc/php/conf.d/uploads.ini
 
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -58,10 +58,10 @@ RUN install-php-extensions \
     redis
 
 # Increase PHP upload limits for large files (up to 2GB) — must be AFTER extensions
-RUN echo "upload_max_filesize = 2048M" > /usr/local/etc/php/conf.d/uploads.ini \
-    && echo "post_max_size = 2048M" >> /usr/local/etc/php/conf.d/uploads.ini \
-    && echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/uploads.ini \
-    && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/uploads.ini
+RUN echo "upload_max_filesize = 20000M" > /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "post_max_size = 20000M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "memory_limit = 512M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "max_execution_time = 3600" >> /usr/local/etc/php/conf.d/uploads.ini
 
 WORKDIR /var/www
 

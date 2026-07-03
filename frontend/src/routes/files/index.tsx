@@ -14,8 +14,8 @@ export const Route = createRoute({
   component: FilesPage,
 })
 
-const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024 // 2GB (Local Bot API limit)
-const MAX_FILE_SIZE_MB = 2048
+const MAX_FILE_SIZE = 100 * 1024 * 1024 * 1024 // 100GB (chunked uploads, limited by disk space)
+const MAX_FILE_SIZE_MB = 102400
 
 function FilesPage() {
   const { searchQuery, sortBy, setSearch, setSort } = useFilterStore()
