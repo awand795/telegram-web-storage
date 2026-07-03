@@ -204,6 +204,8 @@ services:
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-lucidfordream_bot}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8833059580:AAHCvXR-umWt2eAuA7BeoYBdMM6S51uVAqg}
     stop_grace_period: 30m
+    healthcheck:
+      disable: true
     depends_on:
       - backend
       - redis
