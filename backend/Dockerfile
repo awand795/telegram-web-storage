@@ -18,6 +18,12 @@ RUN install-php-extensions \
     pcntl \
     redis
 
+# Increase PHP upload limits for large files (up to 2GB) — must be AFTER extensions
+RUN echo "upload_max_filesize = 2048M" > /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "post_max_size = 2048M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/uploads.ini
+
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
@@ -51,13 +57,19 @@ RUN install-php-extensions \
     pcntl \
     redis
 
+# Increase PHP upload limits for large files (up to 2GB) — must be AFTER extensions
+RUN echo "upload_max_filesize = 2048M" > /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "post_max_size = 2048M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/uploads.ini
+
 WORKDIR /var/www
 
 # Copy built application from build stage
 COPY --from=build --chown=www-data:www-data /var/www /var/www
 
 # FrankenPHP Caddy configuration for production
-COPY --chown=www-data:www-data docker/Caddyfile /etc/caddy/Caddyfile
+# Using default FrankenPHP Caddyfile (custom one removed to avoid conflicts with Octane)
 
 # Health check endpoint
 RUN echo "<?php echo 'ok';" > public/up.php

@@ -61,6 +61,7 @@ services:
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_LOCAL_API_URL: ${TELEGRAM_LOCAL_API_URL:-}
+      SERVER_NAME: :8000
     volumes:
       - ./backend:/var/www
     depends_on:
@@ -106,6 +107,7 @@ services:
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_LOCAL_API_URL: ${TELEGRAM_LOCAL_API_URL:-}
+      SERVER_NAME: :8000
     volumes:
       - ./backend:/var/www
     depends_on:

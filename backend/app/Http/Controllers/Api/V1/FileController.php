@@ -19,7 +19,7 @@ class FileController extends Controller
     public function upload(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => 'required|file|max:51200',
+            'file' => 'required|file|max:2097152',
             'folder_id' => 'nullable|string|exists:folders,id',
         ]);
 
