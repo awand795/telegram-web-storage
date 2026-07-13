@@ -188,4 +188,130 @@ class FileController extends Controller
 
         return response()->json(['data' => $file]);
     }
+
+    public function content(Request $request, string $id): JsonResponse
+    {
+        $query = File::query()->whereNull('parent_id');
+        if (!$request->user()->isAdmin()) {
+            $query->where('user_id', $request->user()->id);
+        }
+        $file = $query->findOrFail($id);
+
+        // Handle chunked files (reassemble first)
+        if ($file->is_chunked) {
+            if ($file->status !== 'done') {
+                return response()->json(['message' => 'File upload still in progress'], 404);
+            }
+            try {
+                $reassembledPath = $this->storageService->reassembleFile($file);
+                $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($reassembledPath);
+                $content = file_get_contents($fullPath);
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($reassembledPath);
+                return response()->json(['content' => $content]);
+            } catch (\Throwable $e) {
+                return response()->json(['message' => 'Failed to read file content: ' . $e->getMessage()], 500);
+            }
+        }
+
+        // Normal file: download from Telegram
+        if (!$file->telegram_file_id) {
+            return response()->json(['message' => 'File not ready'], 404);
+        }
+
+        try {
+            $bot = $file->bot;
+            $token = $bot->token_encrypted;
+            $telegramFile = $this->telegramService->getFile($token, $file->telegram_file_id);
+            $fileUrl = $this->telegramService->getFileUrl($token, $telegramFile['file_path']);
+
+            $response = \Illuminate\Support\Facades\Http::timeout(30)->get($fileUrl);
+            if (!$response->successful()) {
+                return response()->json(['message' => 'Failed to fetch file from Telegram'], 502);
+            }
+            return response()->json(['content' => $response->body()]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('File content fetch failed', [
+                'file_id' => $file->id,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['message' => 'Failed to fetch file content'], 500);
+        }
+    }
+
+    public function move(Request $request, string $id): JsonResponse
+    {
+        $request->validate([
+            'folder_id' => 'nullable|string|exists:folders,id',
+        ]);
+
+        $query = File::query()->whereNull('parent_id');
+        if (!$request->user()->isAdmin()) {
+            $query->where('user_id', $request->user()->id);
+        }
+        $file = $query->findOrFail($id);
+
+        // Verify folder belongs to user if not admin
+        if ($request->filled('folder_id')) {
+            $folder = \App\Models\Folder::findOrFail($request->folder_id);
+            if (!$request->user()->isAdmin() && $folder->user_id !== $request->user()->id) {
+                return response()->json(['message' => 'Folder does not belong to you'], 403);
+            }
+        }
+
+        $oldFolderId = $file->folder_id;
+        $file->update(['folder_id' => $request->folder_id]);
+
+        $this->auditService->log(
+            userId: $request->user()->id,
+            action: 'move',
+            targetType: 'file',
+            targetId: $file->id,
+            meta: ['name' => $file->name, 'from_folder' => $oldFolderId, 'to_folder' => $request->folder_id],
+            request: $request,
+        );
+
+        return response()->json(['data' => $file->fresh()]);
+    }
+
+    public function batchMove(Request $request): JsonResponse
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'string|exists:files,id',
+            'folder_id' => 'nullable|string|exists:folders,id',
+        ]);
+
+        $user = $request->user();
+        $moved = 0;
+
+        foreach ($request->ids as $id) {
+            $query = File::query()->whereNull('parent_id');
+            if (!$user->isAdmin()) {
+                $query->where('user_id', $user->id);
+            }
+            $file = $query->find($id);
+            if (!$file) continue;
+
+            // Verify folder belongs to user
+            if ($request->filled('folder_id')) {
+                $folder = \App\Models\Folder::find($request->folder_id);
+                if (!$folder || (!$user->isAdmin() && $folder->user_id !== $user->id)) {
+                    continue;
+                }
+            }
+
+            $file->update(['folder_id' => $request->folder_id]);
+            $moved++;
+        }
+
+        $this->auditService->log(
+            userId: $user->id,
+            action: 'batch_move',
+            targetType: 'file',
+            meta: ['count' => $moved, 'to_folder' => $request->folder_id],
+            request: $request,
+        );
+
+        return response()->json(['moved' => $moved]);
+    }
 }

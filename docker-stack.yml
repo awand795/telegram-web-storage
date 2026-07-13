@@ -257,7 +257,7 @@ services:
         protocol: tcp
 
     environment:
-      VITE_API_URL: http://localhost:8000
+      VITE_API_URL: ""
     depends_on:
       - backend
     deploy:
@@ -268,11 +268,11 @@ services:
           - node.labels.telestore.frontend == true
       resources:
         limits:
-          cpus: '0.5'
-          memory: 256M
+          cpus: '1.0'
+          memory: 1G
         reservations:
-          cpus: '0.1'
-          memory: 128M
+          cpus: '0.25'
+          memory: 256M
       restart_policy:
         condition: any
         delay: 10s

@@ -15,19 +15,19 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://backend:8000',
+        target: process.env.VITE_API_URL || 'http://telestore_backend:8000',
         changeOrigin: true,
       },
       '/web': {
-        target: process.env.VITE_API_URL || 'http://backend:8000',
+        target: process.env.VITE_API_URL || 'http://telestore_backend:8000',
         changeOrigin: true,
       },
       '/auth': {
-        target: process.env.VITE_API_URL || 'http://backend:8000',
+        target: process.env.VITE_API_URL || 'http://telestore_backend:8000',
         changeOrigin: true,
       },
-      '/s': {
-        target: process.env.VITE_API_URL || 'http://backend:8000',
+      '/s/': {
+        target: process.env.VITE_API_URL || 'http://telestore_backend:8000',
         changeOrigin: true,
       },
     },

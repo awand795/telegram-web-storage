@@ -1,0 +1,5 @@
+{"ID":"v7s8agkwcy4l","Image":"localhost/telestore-backend:latest","Mode":"replicated","Name":"telestore_backend","Ports":"*:8000-\u003e8000/tcp","Replicas":"1/1"}
+{"ID":"6soho3feew06","Image":"postgres:17-alpine","Mode":"replicated","Name":"telestore_postgres","Ports":"*:5433-\u003e5432/tcp","Replicas":"1/1"}
+{"ID":"zfdwpvqbh53s","Image":"localhost/telestore-backend:latest","Mode":"replicated","Name":"telestore_queue-worker","Ports":"","Replicas":"1/1"}
+{"ID":"2dj4ahne92na","Image":"redis:7-alpine","Mode":"replicated","Name":"telestore_redis","Ports":"*:6379-\u003e6379/tcp","Replicas":"1/1"}
+{"ID":"izwzxrd7apa7","Image":"aiogram/telegram-bot-api:latest","Mode":"replicated","Name":"telestore_telegram-bot-api","Ports":"*:8081-\u003e8081/tcp","Replicas":"1/1"}

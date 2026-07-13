@@ -3,6 +3,7 @@ import { Route as rootRoute } from '@/routes/__root'
 import { useSharedFile } from '@/queries'
 import { formatBytes } from '@/lib/utils'
 import { motion } from 'motion/react'
+import { Download, AlertCircle, FileQuestion } from 'lucide-react'
 
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
@@ -34,10 +35,10 @@ function SharedFilePage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-canvas">
         <div className="text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
-          <p className="mt-4 text-sm text-zinc-400">Loading file info...</p>
+          <p className="mt-4 text-sm text-text-muted">Loading file info...</p>
         </div>
       </div>
     )
@@ -45,17 +46,23 @@ function SharedFilePage() {
 
   if (isError || !file) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
-          <p className="text-6xl mb-4">🔗</p>
-          <h1 className="text-xl font-semibold text-zinc-100">Link Not Found</h1>
-          <p className="mt-2 text-sm text-zinc-400">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-elevated">
+            <FileQuestion className="h-8 w-8 text-text-muted" />
+          </div>
+          <h1 className="text-xl font-semibold text-text-primary">Link Not Found</h1>
+          <p className="mt-2 text-sm text-text-muted">
             This file link is invalid or has been removed.
           </p>
+          <div className="mt-6 flex items-center justify-center gap-2 text-xs text-warning">
+            <AlertCircle className="h-3.5 w-3.5" />
+            <span>Contact the file owner for a new link</span>
+          </div>
         </motion.div>
       </div>
     )
@@ -71,7 +78,7 @@ function SharedFilePage() {
     : 'Unknown date'
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -79,9 +86,9 @@ function SharedFilePage() {
         className="w-full max-w-md"
       >
         {/* Card */}
-        <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
-          {/* Top accent */}
-          <div className="h-1.5 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500" />
+        <div className="overflow-hidden rounded-2xl border border-border-default bg-surface shadow-xl shadow-black/5">
+          {/* Top accent gradient */}
+          <div className="h-1.5 bg-gradient-to-r from-accent-primary via-accent-secondary to-accent-primary" />
 
           {/* File Icon & Name */}
           <div className="px-6 pt-8 pb-6 text-center">
@@ -89,49 +96,50 @@ function SharedFilePage() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
-              className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-zinc-800/80 text-4xl"
+              className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-surface-elevated text-4xl"
             >
               {getFileIcon(file.mime_type)}
             </motion.div>
 
-            <h1 className="text-lg font-semibold text-zinc-100 break-all px-2">
+            <h1 className="break-all px-2 text-lg font-semibold text-text-primary">
               {file.name}
             </h1>
           </div>
 
           {/* File Info */}
-          <div className="border-t border-zinc-800 px-6 py-4">
+          <div className="border-t border-border-default px-6 py-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-zinc-400">Size</span>
-              <span className="font-medium text-zinc-200">{formatBytes(file.size)}</span>
+              <span className="text-text-muted">Size</span>
+              <span className="font-medium text-text-primary">{formatBytes(file.size)}</span>
             </div>
             <div className="mt-2 flex items-center justify-between text-sm">
-              <span className="text-zinc-400">Type</span>
-              <span className="font-medium text-zinc-200">{file.mime_type}</span>
+              <span className="text-text-muted">Type</span>
+              <span className="font-medium text-text-primary">{file.mime_type}</span>
             </div>
             <div className="mt-2 flex items-center justify-between text-sm">
-              <span className="text-zinc-400">Uploaded</span>
-              <span className="font-medium text-zinc-200">{uploadedDate}</span>
+              <span className="text-text-muted">Uploaded</span>
+              <span className="font-medium text-text-primary">{uploadedDate}</span>
             </div>
           </div>
 
           {/* Download Button */}
-          <div className="border-t border-zinc-800 px-6 py-5">
+          <div className="border-t border-border-default px-6 py-5">
             <a
               href={downloadUrl}
-              className="flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-purple-900/30 transition-all hover:from-violet-500 hover:to-purple-500 hover:shadow-purple-800/40 active:scale-[0.98]"
+              className="group flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-accent-primary to-accent-secondary px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-accent-primary/25 transition-all hover:shadow-accent-primary/40 active:scale-[0.98]"
             >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
+              <Download className="h-5 w-5 transition-transform group-hover:translate-y-0.5" />
               Download File
             </a>
           </div>
         </div>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-xs text-zinc-600">
-          Powered by TeleStore
+        <p className="mt-6 text-center text-xs text-text-muted">
+          Powered by{' '}
+          <span className="bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text font-semibold text-transparent">
+            TeleStore
+          </span>
         </p>
       </motion.div>
     </div>

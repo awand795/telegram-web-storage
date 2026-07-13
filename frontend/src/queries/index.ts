@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
 import api from '@/lib/axios'
 import type {
   File,
@@ -14,6 +14,17 @@ import type {
   CreateFolderInput,
 } from '@/types/schema'
 
+// === Types for paginated response ===
+interface PaginatedResponse {
+  data: File[]
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+  next_page_url: string | null
+  prev_page_url: string | null
+}
+
 // === Files ===
 export function useFiles(filters?: Record<string, string>) {
   return useQuery({
@@ -21,6 +32,27 @@ export function useFiles(filters?: Record<string, string>) {
     queryFn: async () => {
       const { data } = await api.get<{ data: File[] }>('/api/v1/files', { params: filters })
       return data.data
+    },
+    staleTime: 30_000,
+  })
+}
+
+export function useFilesInfinite(filters?: Record<string, string>) {
+  const perPage = filters?.per_page || '50'
+  return useInfiniteQuery({
+    queryKey: ['files-infinite', filters],
+    queryFn: async ({ pageParam = 1 }) => {
+      const { data } = await api.get<PaginatedResponse>('/api/v1/files', {
+        params: { ...filters, page: pageParam, per_page: perPage },
+      })
+      return data
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.current_page < lastPage.last_page) {
+        return lastPage.current_page + 1
+      }
+      return undefined
     },
     staleTime: 30_000,
   })
@@ -49,6 +81,7 @@ export function useUploadFile() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] })
+      queryClient.invalidateQueries({ queryKey: ['files-infinite'] })
       queryClient.invalidateQueries({ queryKey: ['usage'] })
     },
   })
@@ -62,6 +95,21 @@ export function useDeleteFile() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] })
+      queryClient.invalidateQueries({ queryKey: ['files-infinite'] })
+      queryClient.invalidateQueries({ queryKey: ['usage'] })
+    },
+  })
+}
+
+export function useDeleteFiles() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map((id) => api.delete(`/api/v1/files/${id}`)))
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+      queryClient.invalidateQueries({ queryKey: ['files-infinite'] })
       queryClient.invalidateQueries({ queryKey: ['usage'] })
     },
   })
@@ -88,6 +136,35 @@ export function useCreateFolder() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folders'] })
+    },
+  })
+}
+
+// === Move Files ===
+export function useMoveFile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ fileId, folderId }: { fileId: string; folderId: string | null }) => {
+      const { data } = await api.patch(`/api/v1/files/${fileId}/move`, { folder_id: folderId })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+      queryClient.invalidateQueries({ queryKey: ['files-infinite'] })
+    },
+  })
+}
+
+export function useBatchMoveFiles() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
+      const { data } = await api.post('/api/v1/files/batch-move', { ids, folder_id: folderId })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+      queryClient.invalidateQueries({ queryKey: ['files-infinite'] })
     },
   })
 }
@@ -293,6 +370,20 @@ export function useSharedFile(token: string) {
   })
 }
 
+// === File Content ===
+export function useFileContent(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['file-content', id],
+    queryFn: async () => {
+      const { data } = await api.get<{ content: string }>(`/api/v1/files/${id}/content`)
+      return data.content
+    },
+    enabled: enabled && !!id,
+    staleTime: 300_000,
+    retry: 1,
+  })
+}
+
 // === Auth ===
 export function useMe() {
   return useQuery({
@@ -304,5 +395,18 @@ export function useMe() {
     staleTime: 300_000,
     retry: false,
     enabled: !!localStorage.getItem('token'),
+  })
+}
+
+export function useUpdateProfile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { name?: string; email?: string; current_password?: string; password?: string; password_confirmation?: string }) => {
+      const { data } = await api.patch('/web/profile', input)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
   })
 }

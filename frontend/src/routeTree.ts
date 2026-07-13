@@ -6,6 +6,7 @@ import { Route as fileDetailRoute } from './routes/files/$fileId'
 import { Route as botsRoute } from './routes/settings/bots'
 import { Route as apiKeysRoute } from './routes/settings/api-keys'
 import { Route as webhooksRoute } from './routes/settings/webhooks'
+import { Route as profileRoute } from './routes/settings/profile'
 import { Route as shareRoute } from './routes/share/$shareToken'
 import { Route as auditRoute } from './routes/audit/index'
 import { Route as loginRoute } from './routes/login/index'
@@ -22,5 +23,6 @@ export const routeTree = rootRoute.addChildren([
   botsRoute,
   apiKeysRoute,
   webhooksRoute,
+  profileRoute,
   auditRoute,
 ])

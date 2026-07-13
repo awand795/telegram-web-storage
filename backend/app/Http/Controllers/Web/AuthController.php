@@ -151,6 +151,57 @@ class AuthController extends Controller
         return response()->json($request->user()->load('bots'));
     }
 
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
+            'current_password' => 'required_with:password|string',
+            'password' => 'sometimes|string|min:6|confirmed',
+        ]);
+
+        $updatedFields = [];
+
+        if ($request->has('name')) {
+            $user->name = $request->name;
+            $updatedFields[] = 'name';
+        }
+
+        if ($request->has('email')) {
+            $user->email = $request->email;
+            $updatedFields[] = 'email';
+        }
+
+        if ($request->has('password')) {
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json([
+                    'message' => 'Current password is incorrect.',
+                    'errors' => ['current_password' => ['The current password you entered is incorrect.']],
+                ], 422);
+            }
+            $user->password = Hash::make($request->password);
+            $updatedFields[] = 'password';
+        }
+
+        $user->save();
+
+        $this->auditService->log(
+            userId: $user->id,
+            action: 'update',
+            targetType: 'user',
+            targetId: $user->id,
+            meta: ['updated_fields' => $updatedFields],
+            request: $request,
+        );
+
+        return response()->json([
+            'user' => $user->fresh(),
+            'message' => 'Profile updated successfully.',
+        ]);
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();

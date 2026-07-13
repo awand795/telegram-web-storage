@@ -14,8 +14,11 @@ Route::prefix('v1')->middleware([ApiKeyAuth::class, RateLimitByKey::class])->gro
     Route::get('/files', [FileController::class, 'index']);
     Route::get('/files/{id}', [FileController::class, 'show']);
     Route::get('/files/{id}/download', [FileController::class, 'download']);
+    Route::get('/files/{id}/content', [FileController::class, 'content']);
     Route::delete('/files/{id}', [FileController::class, 'destroy']);
     Route::patch('/files/{id}/tags', [FileController::class, 'updateTags']);
+    Route::patch('/files/{id}/move', [FileController::class, 'move']);
+    Route::post('/files/batch-move', [FileController::class, 'batchMove']);
 
     // Share
     Route::post('/files/{id}/share', [ShareController::class, 'generate']);

@@ -21,6 +21,7 @@ Route::get('/s/{shareToken}/download', [\App\Http\Controllers\Api\V1\ShareContro
 // Web SPA (Sanctum) — under /web/ prefix, must be authenticated
 Route::prefix('web')->middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::patch('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     // Bots
